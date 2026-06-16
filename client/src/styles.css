@@ -47,8 +47,9 @@ textarea:focus,input.fc:focus{border-color:#2f9e6a !important;}
   .stat-value { font-size: 26px !important; }
   .stat-numrow { flex-wrap: wrap !important; gap: 4px 6px !important; }
 
-  /* Multi-column grids collapse */
-  [style*="repeat(4,1fr)"], [style*="repeat(3,1fr)"] { grid-template-columns: repeat(2, 1fr) !important; }
+  /* Multi-column grids collapse. Keep repeat(3,1fr) as-is — those are compact
+     tab groups (input modes, context types) that look best staying 3-up. */
+  [style*="repeat(4,1fr)"] { grid-template-columns: repeat(2, 1fr) !important; }
   [style*="1.6fr 1fr"], [style*="1.45fr 1fr"], [style*="1fr 1fr"] { grid-template-columns: 1fr !important; }
 
   /* Result header (score ring + action buttons) wraps */
@@ -80,4 +81,7 @@ textarea:focus,input.fc:focus{border-color:#2f9e6a !important;}
 
   /* Card inner padding a touch smaller everywhere */
   [style*="border-radius:13px"][style*="padding:20px"] { padding: 16px !important; }
+
+  /* Result case header: stack info / score ring / actions vertically */
+  [style*="gap:22px"] { flex-direction: column !important; align-items: stretch !important; gap: 14px !important; }
 }
