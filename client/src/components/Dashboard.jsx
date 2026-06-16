@@ -27,15 +27,15 @@ export default function Dashboard() {
   const recent = state.cases.slice(0, 5);
   return (
     <div style={st("max-width:1180px;margin:0 auto;animation:fadeUp .4s ease;")}>
-      <div style={st("display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:18px;")}>
+      <div className="stat-grid" style={st("display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:18px;")}>
         {stats.map((s, i) => (
-          <div key={i} style={st("background:#fff;border:1px solid #e2e9e5;border-radius:13px;padding:18px;position:relative;overflow:hidden;")}>
-            <div style={st("font-size:12px;color:#7d8e86;font-weight:500;margin-bottom:10px;")}>{s.label}</div>
-            <div style={st("display:flex;align-items:flex-end;gap:8px;")}>
-              <div style={st("font-size:32px;font-weight:700;color:#16241d;line-height:1;font-family:'IBM Plex Mono',monospace;")}>{s.value}</div>
-              <div style={st("font-size:12px;font-weight:600;font-family:'IBM Plex Mono',monospace;color:" + s.accent)}>{s.delta}</div>
+          <div key={i} className="stat-card" style={st("background:#fff;border:1px solid #e2e9e5;border-radius:13px;padding:18px;position:relative;overflow:hidden;")}>
+            <div className="stat-label" style={st("font-size:12px;color:#7d8e86;font-weight:500;margin-bottom:10px;")}>{s.label}</div>
+            <div className="stat-numrow" style={st("display:flex;align-items:flex-end;gap:8px;")}>
+              <div className="stat-value" style={st("font-size:32px;font-weight:700;color:#16241d;line-height:1;font-family:'IBM Plex Mono',monospace;")}>{s.value}</div>
+              <div className="stat-delta" style={st("font-size:12px;font-weight:600;font-family:'IBM Plex Mono',monospace;color:" + s.accent)}>{s.delta}</div>
             </div>
-            <div style={st("font-size:11px;color:#9aa8a1;margin-top:6px;")}>{s.sub}</div>
+            <div className="stat-sub" style={st("font-size:11px;color:#9aa8a1;margin-top:6px;")}>{s.sub}</div>
             <div style={st("position:absolute;left:0;top:0;bottom:0;width:4px;background:" + s.accent + ";")}></div>
           </div>
         ))}

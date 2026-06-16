@@ -25,23 +25,31 @@ textarea:focus,input.fc:focus{border-color:#2f9e6a !important;}
   /* Shell: stack the sidebar on top, let the page scroll vertically */
   #root-shell { flex-direction: column !important; height: 100dvh !important; }
 
-  /* Sidebar → horizontal top bar with compact icon+label nav */
-  .sidebar { width: 100% !important; flex-direction: row !important; align-items: center; height: auto !important; }
-  .sidebar .brand { border-bottom: none !important; border-right: 1px solid rgba(255,255,255,.08); padding: 12px 14px !important; flex-shrink: 0; }
+  /* Sidebar → horizontal top bar: clean scrollable icon+label tab bar */
+  .sidebar { width: 100% !important; flex-direction: row !important; align-items: stretch; height: auto !important; }
+  .sidebar .brand { border-bottom: none !important; border-right: 1px solid rgba(255,255,255,.08); padding: 10px 14px !important; flex-shrink: 0; }
   .brand-text, .menu-label, .sidebar-user { display: none !important; }
-  .sidebar-nav { flex-direction: row !important; flex: 1; overflow-x: auto; padding: 8px 10px !important; gap: 6px !important; }
-  .nav-btn { flex-direction: column !important; width: auto !important; min-width: 62px; gap: 3px !important; padding: 8px 10px !important; position: relative; }
+  .sidebar-nav { flex-direction: row !important; flex: 1; overflow-x: auto; overflow-y: hidden; padding: 8px !important; gap: 4px !important; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .sidebar-nav::-webkit-scrollbar { display: none; }
+  .nav-btn { flex-direction: column !important; width: auto !important; min-width: 0 !important; gap: 4px !important; padding: 7px 12px !important; position: relative; align-items: center !important; flex-shrink: 0; }
   .nav-label { flex: none !important; text-align: center !important; }
+  .nav-label > span:first-child { white-space: nowrap !important; font-size: 11px !important; line-height: 1.1 !important; }
   .nav-label > span:last-child { display: none !important; }   /* hide EN sub-label */
-  .nav-badge { position: absolute; top: 2px; right: 6px; }
+  .nav-badge { position: absolute; top: 1px; right: 4px; transform: scale(.85); }
 
   /* Topbar */
   .topbar { padding: 0 14px !important; gap: 10px !important; }
   .topbar-search, .topbar-sub { display: none !important; }
   .main-scroll { padding: 16px !important; }
 
-  /* Multi-column grids collapse */
-  [style*="repeat(4,1fr)"], [style*="repeat(3,1fr)"] { grid-template-columns: repeat(2, 1fr) !important; }
+  /* Stat cards: shrink the big number + let the delta wrap so nothing clips */
+  .stat-card { padding: 14px !important; }
+  .stat-value { font-size: 26px !important; }
+  .stat-numrow { flex-wrap: wrap !important; gap: 4px 6px !important; }
+
+  /* Multi-column grids collapse. Keep repeat(3,1fr) as-is — those are compact
+     tab groups (input modes, context types) that look best staying 3-up. */
+  [style*="repeat(4,1fr)"] { grid-template-columns: repeat(2, 1fr) !important; }
   [style*="1.6fr 1fr"], [style*="1.45fr 1fr"], [style*="1fr 1fr"] { grid-template-columns: 1fr !important; }
 
   /* Result header (score ring + action buttons) wraps */
@@ -58,4 +66,22 @@ textarea:focus,input.fc:focus{border-color:#2f9e6a !important;}
 @media (max-width: 520px) {
   .topbar-cta-text { display: none !important; }   /* CTA becomes an icon button */
   [style*="repeat(4,1fr)"] { grid-template-columns: repeat(2, 1fr) !important; }
+
+  /* Tighter phone padding */
+  .main-scroll { padding: 12px !important; }
+  .topbar { padding: 0 12px !important; }
+
+  /* Stat cards: two per row, compact, label on one line */
+  .stat-card { padding: 12px !important; border-radius: 11px !important; }
+  .stat-label { font-size: 11px !important; margin-bottom: 6px !important; line-height: 1.3 !important; }
+  .stat-value { font-size: 23px !important; }
+  .stat-delta { font-size: 11px !important; }
+  .stat-sub { font-size: 10px !important; margin-top: 4px !important; }
+  .stat-grid { gap: 10px !important; }
+
+  /* Card inner padding a touch smaller everywhere */
+  [style*="border-radius:13px"][style*="padding:20px"] { padding: 16px !important; }
+
+  /* Result case header: stack info / score ring / actions vertically */
+  [style*="gap:22px"] { flex-direction: column !important; align-items: stretch !important; gap: 14px !important; }
 }
