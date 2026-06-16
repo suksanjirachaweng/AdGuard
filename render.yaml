@@ -5,7 +5,7 @@
 # the repo. Fill ANTHROPIC_API_KEY and the database vars in the dashboard.
 services:
   - type: web
-    name: adguard
+    name: falsead-detector
     runtime: node
     plan: free
     buildCommand: npm install && npm run build
