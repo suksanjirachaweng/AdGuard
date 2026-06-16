@@ -28,6 +28,7 @@ const ok = (body) => Promise.resolve({ ok: true, json: () => Promise.resolve(bod
 
 beforeEach(() => {
   global.fetch = vi.fn((url) => {
+    if (url.startsWith("/api/auth/me")) return ok({ user: { id: 1, email: "u@x.com", name: "ผู้ทดสอบ", role: "admin" } });
     if (url.startsWith("/api/cases/AD-2026-0481")) return ok(CASE_DETAIL);
     if (url.startsWith("/api/cases")) return ok(CASES_PAYLOAD);
     if (url.startsWith("/api/context")) return ok(CONTEXT_PAYLOAD);

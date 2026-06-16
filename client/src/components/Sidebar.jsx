@@ -4,9 +4,13 @@ import { navDef } from "../lib/data.js";
 import { screenFromPath } from "../lib/routes.js";
 import { useApp } from "../store.jsx";
 
+const roleLabel = { admin: "ผู้ดูแลระบบ", officer: "เจ้าหน้าที่" };
+
 export default function Sidebar() {
-  const { go } = useApp();
+  const { go, logout, state } = useApp();
   const screen = screenFromPath(useLocation().pathname);
+  const user = state.user || {};
+  const initial = (user.name || user.email || "?").trim().charAt(0).toUpperCase();
   return (
     <aside className="sidebar" style={st("width:248px;flex-shrink:0;background:#0f3026;display:flex;flex-direction:column;color:#cfe0d8;")}>
       <div className="brand" style={st("padding:22px 20px 20px;display:flex;align-items:center;gap:12px;border-bottom:1px solid rgba(255,255,255,.08);")}>
@@ -37,12 +41,12 @@ export default function Sidebar() {
       </nav>
       <div className="sidebar-user" style={st("padding:14px;border-top:1px solid rgba(255,255,255,.08);")}>
         <div style={st("display:flex;align-items:center;gap:10px;padding:8px;border-radius:9px;background:rgba(255,255,255,.05);")}>
-          <div style={st("width:34px;height:34px;border-radius:50%;background:#2f9e6a;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:14px;")}>ส</div>
+          <div style={st("width:34px;height:34px;border-radius:50%;background:#2f9e6a;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:14px;flex-shrink:0;")}>{initial}</div>
           <div style={st("flex:1;line-height:1.2;min-width:0;")}>
-            <div style={st("font-size:12.5px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;")}>สมหญิง ตรวจการณ์</div>
-            <div style={st("font-size:10px;color:#7fae97;")}>เจ้าหน้าที่ อย.</div>
+            <div style={st("font-size:12.5px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;")}>{user.name || user.email}</div>
+            <div style={st("font-size:10px;color:#7fae97;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;")}>{roleLabel[user.role] || user.role}</div>
           </div>
-          <span style={st("color:#5c8a72;font-size:15px;")}>⚙</span>
+          <button onClick={logout} title="ออกจากระบบ" style={st("background:none;border:none;color:#7fae97;font-size:15px;cursor:pointer;padding:4px;line-height:1;")}>⏻</button>
         </div>
       </div>
     </aside>

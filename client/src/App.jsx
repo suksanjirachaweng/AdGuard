@@ -1,5 +1,6 @@
 import { Routes, Route } from "react-router-dom";
 import { st } from "./lib/st.js";
+import { useApp } from "./store.jsx";
 import Sidebar from "./components/Sidebar.jsx";
 import Topbar from "./components/Topbar.jsx";
 import Dashboard from "./components/Dashboard.jsx";
@@ -10,8 +11,22 @@ import ContextScreen from "./components/ContextScreen.jsx";
 import Handoff from "./components/Handoff.jsx";
 import AnalyzingOverlay from "./components/AnalyzingOverlay.jsx";
 import AddContextModal from "./components/AddContextModal.jsx";
+import Login from "./components/Login.jsx";
 
 export default function App() {
+  const { state } = useApp();
+
+  // While we verify the session, show a minimal splash to avoid a flash of login.
+  if (!state.authChecked) {
+    return (
+      <div style={st("min-height:100dvh;display:flex;align-items:center;justify-content:center;background:#eef2f0;")}>
+        <div style={st("width:42px;height:42px;border-radius:11px;border:3px solid #d8e6de;border-top-color:#2f9e6a;animation:spin 1s linear infinite;")}></div>
+      </div>
+    );
+  }
+
+  if (!state.user) return <Login />;
+
   return (
     <div id="root-shell" style={st("display:flex;height:100vh;width:100%;overflow:hidden;background:#eef2f0;")}>
       <Sidebar />

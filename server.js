@@ -1,5 +1,8 @@
 import express from "express";
 import Anthropic from "@anthropic-ai/sdk";
+import cookieParser from "cookie-parser";
+import jwt from "jsonwebtoken";
+import bcrypt from "bcryptjs";
 import { readFileSync, existsSync } from "fs";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
@@ -19,12 +22,59 @@ try {
 const PORT = process.env.PORT || 3000;
 const app = express();
 app.use(express.json({ limit: "12mb" }));
+app.use(cookieParser());
 // Serve the built React app (client/ → vite build → ./public) when present.
 // Falls through to the original vanilla files at the project root otherwise.
 app.use(express.static(join(__dirname, "public")));
 app.use(express.static(__dirname));
 
 const client = new Anthropic(); // reads ANTHROPIC_API_KEY from env
+
+// ---- Authentication (JWT in an httpOnly cookie) -------------------------
+const JWT_SECRET = process.env.JWT_SECRET || "dev-insecure-secret-change-me";
+const COOKIE = "adguard_token";
+const isProd = process.env.NODE_ENV === "production" || !!process.env.RENDER;
+if (JWT_SECRET === "dev-insecure-secret-change-me" && isProd) {
+  console.warn("⚠️  JWT_SECRET ยังไม่ได้ตั้งค่าใน production — ตั้งค่าให้เป็นค่าลับยาวๆ");
+}
+
+const publicUser = (u) => ({ id: u.id, email: u.email, name: u.name, role: u.role });
+const signToken = (u) => jwt.sign(publicUser(u), JWT_SECRET, { expiresIn: "7d" });
+function setAuthCookie(res, token) {
+  res.cookie(COOKIE, token, {
+    httpOnly: true, sameSite: "lax", secure: isProd, maxAge: 7 * 24 * 60 * 60 * 1000,
+  });
+}
+function requireAuth(req, res, next) {
+  const token = req.cookies?.[COOKIE];
+  if (!token) return res.status(401).json({ error: "กรุณาเข้าสู่ระบบ" });
+  try { req.user = jwt.verify(token, JWT_SECRET); next(); }
+  catch { res.status(401).json({ error: "เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่" }); }
+}
+
+// Wrap async handlers so rejected promises become 500s instead of crashing.
+const wrap = (fn) => (req, res) => fn(req, res).catch((err) => {
+  console.error("API error:", err?.message || err);
+  res.status(500).json({ error: "เกิดข้อผิดพลาดของฐานข้อมูล" });
+});
+
+// ---- Auth routes (public) -----------------------------------------------
+app.post("/api/auth/login", wrap(async (req, res) => {
+  const { email = "", password = "" } = req.body || {};
+  const user = await store.getUserByEmail(email);
+  if (!user || !(await bcrypt.compare(password, user.password_hash))) {
+    return res.status(401).json({ error: "อีเมลหรือรหัสผ่านไม่ถูกต้อง" });
+  }
+  setAuthCookie(res, signToken(user));
+  res.json({ user: publicUser(user) });
+}));
+app.post("/api/auth/logout", (_req, res) => {
+  res.clearCookie(COOKIE);
+  res.json({ ok: true });
+});
+app.get("/api/auth/me", requireAuth, (req, res) => {
+  res.json({ user: { id: req.user.id, email: req.user.email, name: req.user.name, role: req.user.role } });
+});
 
 // JSON schema the model must fill — mirrors the AI Analysis result screen ----
 const ANALYSIS_SCHEMA = {
@@ -84,7 +134,7 @@ const SYSTEM = `คุณคือเครื่องมือ AI ของส
 ให้คะแนน riskScore ตามความรุนแรงและจำนวนความผิด หากไม่พบความผิดให้ riskLevel='clear', violations=[]
 ตอบเป็นภาษาไทยเป็นหลัก (คำเฉพาะอังกฤษได้) และต้องตอบตาม JSON schema ที่กำหนดเท่านั้น`;
 
-app.post("/api/analyze", async (req, res) => {
+app.post("/api/analyze", requireAuth, async (req, res) => {
   try {
     const { mode, url = "", text = "", imageBase64 = "", imageMediaType = "image/jpeg", context = [] } = req.body || {};
 
@@ -134,36 +184,30 @@ app.post("/api/analyze", async (req, res) => {
   }
 });
 
-// Wrap async handlers so rejected promises become 500s instead of crashing.
-const wrap = (fn) => (req, res) => fn(req, res).catch((err) => {
-  console.error("API error:", err?.message || err);
-  res.status(500).json({ error: "เกิดข้อผิดพลาดของฐานข้อมูล" });
-});
-
-// ---- Case database -------------------------------------------------------
-app.get("/api/cases", wrap(async (req, res) => {
+// ---- Case database (auth required) --------------------------------------
+app.get("/api/cases", requireAuth, wrap(async (req, res) => {
   res.json({ cases: await store.listCases(req.query.filter), counts: await store.countCases() });
 }));
-app.get("/api/cases/:id", wrap(async (req, res) => {
+app.get("/api/cases/:id", requireAuth, wrap(async (req, res) => {
   const c = await store.getCase(req.params.id);
   if (!c) return res.status(404).json({ error: "ไม่พบเคส" });
   res.json(c);
 }));
-app.post("/api/cases/:id/refer", wrap(async (req, res) => {
+app.post("/api/cases/:id/refer", requireAuth, wrap(async (req, res) => {
   const { agencies = [], note = "" } = req.body || {};
   if (!agencies.length) return res.status(400).json({ error: "ต้องเลือกอย่างน้อย 1 หน่วยงาน" });
   if (!(await store.referCase(req.params.id, agencies, note))) return res.status(404).json({ error: "ไม่พบเคส" });
   res.json({ ok: true });
 }));
 
-// ---- AI context / knowledge base ----------------------------------------
-app.get("/api/context", wrap(async (_req, res) => res.json({ items: await store.listContext() })));
-app.post("/api/context", wrap(async (req, res) => {
+// ---- AI context / knowledge base (auth required) ------------------------
+app.get("/api/context", requireAuth, wrap(async (_req, res) => res.json({ items: await store.listContext() })));
+app.post("/api/context", requireAuth, wrap(async (req, res) => {
   const { type = "law", title = "", body = "", meta = "" } = req.body || {};
   if (!title.trim()) return res.status(400).json({ error: "ต้องระบุหัวข้อ" });
   res.json(await store.insertContext({ type, title: title.trim(), body: body.trim() || "—", meta }));
 }));
-app.patch("/api/context/:id/toggle", wrap(async (req, res) => {
+app.patch("/api/context/:id/toggle", requireAuth, wrap(async (req, res) => {
   const c = await store.toggleContext(Number(req.params.id));
   if (!c) return res.status(404).json({ error: "ไม่พบบริบท" });
   res.json(c);

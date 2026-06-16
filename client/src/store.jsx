@@ -4,6 +4,11 @@ import { FALLBACK_CASES, FALLBACK_CONTEXT } from "./lib/data.js";
 import { pathFor } from "./lib/routes.js";
 
 const initialState = {
+  // auth
+  user: null,
+  authChecked: false,
+  authError: "",
+  authBusy: false,
   screen: "dashboard",
   selectedId: "AD-2026-0481",
   // input / analyze
@@ -201,12 +206,46 @@ export function AppProvider({ children }) {
     try { await fetch("/api/context/" + id + "/toggle", { method: "PATCH" }); } catch { /* optimistic */ }
   }, [set, state.contextItems]);
 
+  // ---- auth ----
+  const loadAppData = useCallback(() => { loadCases(); loadContext(); }, [loadCases, loadContext]);
+
+  const checkAuth = useCallback(async () => {
+    try {
+      const r = await fetch("/api/auth/me");
+      if (r.ok) { const d = await r.json(); set({ user: d.user, authChecked: true }); loadAppData(); return; }
+    } catch { /* offline */ }
+    set({ user: null, authChecked: true });
+  }, [set, loadAppData]);
+
+  const login = useCallback(async (email, password) => {
+    set({ authBusy: true, authError: "" });
+    try {
+      const r = await fetch("/api/auth/login", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || "เข้าสู่ระบบไม่สำเร็จ");
+      set({ user: d.user, authBusy: false, authError: "" });
+      loadAppData();
+    } catch (err) {
+      set({ authBusy: false, authError: err.message });
+    }
+  }, [set, loadAppData]);
+
+  const logout = useCallback(async () => {
+    try { await fetch("/api/auth/logout", { method: "POST" }); } catch { /* ignore */ }
+    set({ user: null });
+    navigate("/");
+  }, [set, navigate]);
+
   // ---- bootstrap ----
-  useEffect(() => { loadCases(); loadContext(); /* eslint-disable-next-line */ }, []);
+  useEffect(() => { checkAuth(); /* eslint-disable-next-line */ }, []);
   useEffect(() => () => { if (ref.current.timer) clearInterval(ref.current.timer); }, []);
 
   const api = { state, set, go, loadCases, loadContext, openCase, ensureCase, setFilter, onFileChosen, analyze,
-    toggleAgency, send, resetHandoff, openAddContext, closeAddContext, saveContext, toggleContext };
+    toggleAgency, send, resetHandoff, openAddContext, closeAddContext, saveContext, toggleContext,
+    checkAuth, login, logout };
 
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>;
 }

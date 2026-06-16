@@ -16,6 +16,13 @@ services:
         value: "20"
       - key: ANTHROPIC_API_KEY
         sync: false        # set in the Render dashboard (secret)
+      # --- Login (set these in the dashboard) ---
+      - key: JWT_SECRET
+        generateValue: true   # Render generates a strong random secret
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false           # first-run admin password (change after first login)
       # --- Supabase Postgres: use ONE of the two forms below ---
       # Form A (single URL — password must be percent-encoded if it has & ? * etc.)
       - key: DATABASE_URL
