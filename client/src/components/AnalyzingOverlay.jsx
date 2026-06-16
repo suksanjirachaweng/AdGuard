@@ -13,8 +13,8 @@ export default function AnalyzingOverlay() {
   if (!state.analyzing) return null;
   const p = state.progress;
   return (
-    <div style={st("position:fixed;inset:0;background:rgba(10,30,22,.55);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;z-index:50;")}>
-      <div style={st("background:#fff;border-radius:16px;padding:34px;width:440px;box-shadow:0 24px 60px rgba(0,0,0,.3);animation:fadeUp .3s ease;")}>
+    <div style={st("position:fixed;inset:0;background:rgba(10,30,22,.55);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;z-index:50;padding:20px;")}>
+      <div className="analyze-card" style={st("background:#fff;border-radius:16px;padding:34px;width:440px;max-width:100%;box-shadow:0 24px 60px rgba(0,0,0,.3);animation:fadeUp .3s ease;")}>
         <div style={st("display:flex;align-items:center;gap:14px;margin-bottom:22px;")}>
           <div style={st("width:46px;height:46px;border-radius:11px;border:3px solid #e6f1ea;border-top-color:#2f9e6a;animation:spin 1s linear infinite;")}></div>
           <div>
