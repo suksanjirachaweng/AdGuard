@@ -1,3 +1,4 @@
+import React from "react";
 import { Routes, Route } from "react-router-dom";
 import { st } from "./lib/st.js";
 import { useApp } from "./store.jsx";
@@ -15,6 +16,7 @@ import Login from "./components/Login.jsx";
 
 export default function App() {
   const { state } = useApp();
+  const [menuOpen, setMenuOpen] = React.useState(false);
 
   // While we verify the session, show a minimal splash to avoid a flash of login.
   if (!state.authChecked) {
@@ -28,25 +30,31 @@ export default function App() {
   if (!state.user) return <Login />;
 
   return (
-    <div id="root-shell" style={st("display:flex;height:100vh;width:100%;overflow:hidden;background:#eef2f0;")}>
-      <Sidebar />
-      <div style={st("flex:1;display:flex;flex-direction:column;min-width:0;")}>
-        <Topbar />
-        <main className="main-scroll" style={st("flex:1;overflow-y:auto;padding:26px;")}>
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/upload" element={<Upload />} />
-            <Route path="/result" element={<Result />} />
-            <Route path="/result/:id" element={<Result />} />
-            <Route path="/cases" element={<Cases />} />
-            <Route path="/context" element={<ContextScreen />} />
-            <Route path="/handoff" element={<Handoff />} />
-            <Route path="*" element={<Dashboard />} />
-          </Routes>
-          <AnalyzingOverlay />
-          <AddContextModal />
-        </main>
-      </div>
+    <div id="root-shell" style={st("display:flex;flex-direction:column;height:100vh;width:100%;overflow:hidden;background:#eef2f0;")}>
+      {/* Backdrop */}
+      {menuOpen && (
+        <div
+          onClick={() => setMenuOpen(false)}
+          style={st("position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:99;")}
+        />
+      )}
+      {/* Drawer */}
+      <Sidebar open={menuOpen} onClose={() => setMenuOpen(false)} />
+      <Topbar onMenuToggle={() => setMenuOpen((v) => !v)} />
+      <main className="main-scroll" style={st("flex:1;overflow-y:auto;padding:26px;")}>
+        <Routes>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/upload" element={<Upload />} />
+          <Route path="/result" element={<Result />} />
+          <Route path="/result/:id" element={<Result />} />
+          <Route path="/cases" element={<Cases />} />
+          <Route path="/context" element={<ContextScreen />} />
+          <Route path="/handoff" element={<Handoff />} />
+          <Route path="*" element={<Dashboard />} />
+        </Routes>
+        <AnalyzingOverlay />
+        <AddContextModal />
+      </main>
     </div>
   );
 }

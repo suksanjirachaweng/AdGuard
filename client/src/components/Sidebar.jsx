@@ -6,20 +6,49 @@ import { useApp } from "../store.jsx";
 
 const roleLabel = { admin: "ผู้ดูแลระบบ", officer: "เจ้าหน้าที่" };
 
-export default function Sidebar() {
+export default function Sidebar({ open, onClose }) {
   const { go, logout, state } = useApp();
   const screen = screenFromPath(useLocation().pathname);
   const user = state.user || {};
   const initial = (user.name || user.email || "?").trim().charAt(0).toUpperCase();
+
+  const handleNav = (key) => {
+    go(key);
+    onClose();
+  };
+
   return (
-    <aside className="sidebar" style={st("width:248px;flex-shrink:0;background:#0f3026;display:flex;flex-direction:column;color:#cfe0d8;")}>
+    <aside
+      className="sidebar"
+      style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        height: "100vh",
+        width: 248,
+        flexShrink: 0,
+        background: "#0f3026",
+        display: "flex",
+        flexDirection: "column",
+        color: "#cfe0d8",
+        zIndex: 100,
+        transform: open ? "translateX(0)" : "translateX(-100%)",
+        transition: "transform .25s cubic-bezier(.4,0,.2,1)",
+      }}
+    >
       <div className="brand" style={st("padding:22px 20px 20px;display:flex;align-items:center;gap:12px;border-bottom:1px solid rgba(255,255,255,.08);")}>
         <div style={st("width:38px;height:38px;border-radius:9px;background:#2f9e6a;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:20px;flex-shrink:0;box-shadow:0 2px 8px rgba(47,158,106,.4);")}>⚖</div>
-        <div className="brand-text" style={st("line-height:1.15;")}>
+        <div className="brand-text" style={st("line-height:1.15;flex:1;")}>
           <div style={st("font-weight:700;font-size:17px;color:#fff;letter-spacing:.2px;")}>AdGuard</div>
           <div style={st("font-size:10.5px;color:#7fae97;font-family:'IBM Plex Mono',monospace;letter-spacing:.5px;")}>FALSE-AD DETECTION</div>
         </div>
+        <button
+          onClick={onClose}
+          style={st("background:none;border:none;color:#7fae97;font-size:20px;cursor:pointer;padding:4px;line-height:1;")}
+          title="ปิดเมนู"
+        >✕</button>
       </div>
+
       <nav className="sidebar-nav" style={st("padding:14px 12px;display:flex;flex-direction:column;gap:3px;flex:1;")}>
         <div className="menu-label" style={st("font-size:10px;font-weight:600;color:#5c8a72;letter-spacing:1.2px;padding:8px 12px 6px;")}>เมนูหลัก · MENU</div>
         {navDef.map((n) => {
@@ -28,7 +57,7 @@ export default function Sidebar() {
             (active ? "background:#2f9e6a;color:#fff;" : "background:transparent;color:#a8c4b6;");
           const ic = "width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;" + (active ? "color:#fff;" : "color:#5c8a72;");
           return (
-            <button key={n.key} className="nav-btn" onClick={() => go(n.key)} style={st(btn)}>
+            <button key={n.key} className="nav-btn" onClick={() => handleNav(n.key)} style={st(btn)}>
               <span style={st(ic)}>{n.icon}</span>
               <span className="nav-label" style={st("flex:1;text-align:left;line-height:1.1;")}>
                 <span style={st("display:block;font-size:13.5px;font-weight:500;")}>{n.th}</span>
@@ -39,6 +68,7 @@ export default function Sidebar() {
           );
         })}
       </nav>
+
       <div className="sidebar-user" style={st("padding:14px;border-top:1px solid rgba(255,255,255,.08);")}>
         <div style={st("display:flex;align-items:center;gap:10px;padding:8px;border-radius:9px;background:rgba(255,255,255,.05);")}>
           <div style={st("width:34px;height:34px;border-radius:50%;background:#2f9e6a;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:14px;flex-shrink:0;")}>{initial}</div>
