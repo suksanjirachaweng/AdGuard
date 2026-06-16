@@ -1,0 +1,33 @@
+# Render Blueprint — deploys AdGuard as a persistent Node web service.
+# Render runs `node server.js` (a real long-running Express server), which suits
+# this app's architecture (stateful server + Postgres pool) far better than a
+# serverless host. Push this file, then on render.com: New → Blueprint → pick
+# the repo. Fill ANTHROPIC_API_KEY and the database vars in the dashboard.
+services:
+  - type: web
+    name: adguard
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/cases
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: ANTHROPIC_API_KEY
+        sync: false        # set in the Render dashboard (secret)
+      # --- Supabase Postgres: use ONE of the two forms below ---
+      # Form A (single URL — password must be percent-encoded if it has & ? * etc.)
+      - key: DATABASE_URL
+        sync: false
+      # Form B (discrete vars — raw password OK; leave DATABASE_URL blank if you use these)
+      # - key: PGHOST
+      #   sync: false
+      # - key: PGPORT
+      #   value: "5432"
+      # - key: PGUSER
+      #   sync: false
+      # - key: PGPASSWORD
+      #   sync: false
+      # - key: PGDATABASE
+      #   value: postgres

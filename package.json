@@ -8,7 +8,7 @@
     "dev": "node --watch server.js",
     "client:install": "npm --prefix client install",
     "client:dev": "npm --prefix client run dev",
-    "build": "npm --prefix client run build",
+    "build": "npm --prefix client install --include=dev && npm --prefix client run build",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:all": "vitest run && npm --prefix client run test"
