@@ -77,7 +77,7 @@ export default function Result() {
   return (
     <div style={st("max-width:1180px;margin:0 auto;animation:fadeUp .4s ease;")}>
       {/* CASE HEADER */}
-      <div style={st("background:#fff;border:1px solid #e2e9e5;border-radius:14px;padding:20px 22px;margin-bottom:16px;display:flex;align-items:center;gap:22px;")}>
+      <div className="result-head" style={st("background:#fff;border:1px solid #e2e9e5;border-radius:14px;padding:20px 22px;margin-bottom:16px;display:flex;align-items:center;gap:22px;")}>
         <div style={st("flex:1;min-width:0;")}>
           <div style={st("display:flex;align-items:center;gap:9px;margin-bottom:7px;")}>
             <span style={st("font-family:'IBM Plex Mono',monospace;font-size:12px;color:#7d8e86;background:#f1f5f3;padding:2px 9px;border-radius:6px;")}>{rc.id}</span>
@@ -91,14 +91,14 @@ export default function Result() {
             <span style={st("font-size:11px;color:#7d8e86;background:#eef4f1;border:1px solid #dce6e0;padding:2px 9px;border-radius:6px;")}>หมวด: {catVal}</span>
           </div>
         </div>
-        <div style={st("position:relative;width:104px;height:104px;flex-shrink:0;")}>
+        <div className="result-ring" style={st("position:relative;width:104px;height:104px;flex-shrink:0;")}>
           <div style={st(scoreRing)}></div>
           <div style={st("position:absolute;inset:9px;background:#fff;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;")}>
             <div style={st("font-size:30px;font-weight:700;color:#c0392b;font-family:'IBM Plex Mono',monospace;line-height:1;")}>{rc.score}</div>
             <div style={st("font-size:9px;color:#9aa8a1;font-family:'IBM Plex Mono',monospace;letter-spacing:.5px;")}>RISK SCORE</div>
           </div>
         </div>
-        <div style={st("display:flex;flex-direction:column;gap:8px;flex-shrink:0;")}>
+        <div className="result-actions" style={st("display:flex;flex-direction:column;gap:8px;flex-shrink:0;")}>
           <button className="h-dark" onClick={() => go("handoff")} style={st("display:flex;align-items:center;justify-content:center;gap:7px;background:#157347;color:#fff;border:none;border-radius:9px;padding:11px 18px;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;box-shadow:0 2px 6px rgba(21,115,71,.3);")}>➤ ส่งต่อหน่วยงาน</button>
           <div style={st("display:flex;gap:8px;")}>
             <button className="h-soft" style={st("flex:1;background:#fff;border:1px solid #d8e2dc;border-radius:9px;padding:9px 12px;font-family:inherit;font-size:12px;font-weight:600;color:#39473f;cursor:pointer;")}>💾 บันทึก</button>

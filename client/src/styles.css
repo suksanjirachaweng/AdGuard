@@ -47,13 +47,12 @@ textarea:focus,input.fc:focus{border-color:#2f9e6a !important;}
   .stat-value { font-size: 26px !important; }
   .stat-numrow { flex-wrap: wrap !important; gap: 4px 6px !important; }
 
-  /* Multi-column grids collapse. Keep repeat(3,1fr) as-is — those are compact
-     tab groups (input modes, context types) that look best staying 3-up. */
-  [style*="repeat(4,1fr)"] { grid-template-columns: repeat(2, 1fr) !important; }
+  /* Grids collapse. NOTE: React reserializes inline styles WITH spaces
+     (`repeat(4, 1fr)`, `gap: 22px`), so `[style*="repeat(4,1fr)"]`-style
+     selectors do NOT match here — we use class hooks for those. The fr-based
+     two-column selectors below DO match (their value has an internal space). */
+  .stat-grid { grid-template-columns: repeat(2, 1fr) !important; }
   [style*="1.6fr 1fr"], [style*="1.45fr 1fr"], [style*="1fr 1fr"] { grid-template-columns: 1fr !important; }
-
-  /* Result header (score ring + action buttons) wraps */
-  [style*="gap:22px"] { flex-wrap: wrap !important; }
 
   /* Data tables scroll horizontally instead of squashing */
   .hscroll { overflow-x: auto !important; -webkit-overflow-scrolling: touch; }
@@ -65,7 +64,6 @@ textarea:focus,input.fc:focus{border-color:#2f9e6a !important;}
 
 @media (max-width: 520px) {
   .topbar-cta-text { display: none !important; }   /* CTA becomes an icon button */
-  [style*="repeat(4,1fr)"] { grid-template-columns: repeat(2, 1fr) !important; }
 
   /* Tighter phone padding */
   .main-scroll { padding: 12px !important; }
@@ -79,9 +77,13 @@ textarea:focus,input.fc:focus{border-color:#2f9e6a !important;}
   .stat-sub { font-size: 10px !important; margin-top: 4px !important; }
   .stat-grid { gap: 10px !important; }
 
-  /* Card inner padding a touch smaller everywhere */
-  [style*="border-radius:13px"][style*="padding:20px"] { padding: 16px !important; }
+  /* Result case header: stack info / score ring / actions vertically (class hook —
+     attribute selectors don't work under React, see note above). */
+  .result-head { flex-direction: column !important; align-items: stretch !important; gap: 16px !important; }
+  .result-ring { align-self: center !important; }
+  .result-actions { width: 100% !important; }
 
-  /* Result case header: stack info / score ring / actions vertically */
-  [style*="gap:22px"] { flex-direction: column !important; align-items: stretch !important; gap: 14px !important; }
+  /* AI Context intro banner: stack icon/text/button */
+  .ctx-intro { flex-direction: column !important; align-items: flex-start !important; gap: 14px !important; }
+  .ctx-intro > button { width: 100% !important; justify-content: center !important; }
 }
