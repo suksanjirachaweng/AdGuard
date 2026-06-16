@@ -1,0 +1,61 @@
+*{box-sizing:border-box;}
+body{margin:0;font-family:'IBM Plex Sans Thai',system-ui,sans-serif;-webkit-font-smoothing:antialiased;color:#16241d;}
+::-webkit-scrollbar{width:10px;height:10px;}
+::-webkit-scrollbar-thumb{background:#cdd8d2;border-radius:6px;border:2px solid transparent;background-clip:content-box;}
+::-webkit-scrollbar-track{background:transparent;}
+@keyframes spin{to{transform:rotate(360deg);}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
+@keyframes barGrow{from{width:0;}}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.45;}}
+/* hover helpers (porting style-hover / style-focus from the design) */
+.h-dark:hover{background:#0f5c38 !important;}
+.h-soft:hover{background:#f1f5f3 !important;}
+.h-soft2:hover{background:#f7faf8 !important;}
+.h-chip:hover{background:#e2ede7 !important;}
+.h-green:hover{background:#34ad75 !important;}
+.h-drop:hover{border-color:#2f9e6a !important;background:#f0f7f3 !important;}
+.fw:focus-within{border-color:#2f9e6a !important;}
+textarea:focus,input.fc:focus{border-color:#2f9e6a !important;}
+
+/* ===================== RESPONSIVE ===================== */
+/* The design is built from inline styles; these media-query rules override the
+   key structural ones with !important. Attribute selectors target the inline
+   grid templates directly so we don't have to touch every element. */
+@media (max-width: 860px) {
+  /* Shell: stack the sidebar on top, let the page scroll vertically */
+  #root { flex-direction: column !important; height: 100dvh !important; }
+
+  /* Sidebar → horizontal top bar with compact icon+label nav */
+  .sidebar { width: 100% !important; flex-direction: row !important; align-items: center; height: auto !important; }
+  .sidebar .brand { border-bottom: none !important; border-right: 1px solid rgba(255,255,255,.08); padding: 12px 14px !important; flex-shrink: 0; }
+  .brand-text, .menu-label, .sidebar-user { display: none !important; }
+  .sidebar-nav { flex-direction: row !important; flex: 1; overflow-x: auto; padding: 8px 10px !important; gap: 6px !important; }
+  .nav-btn { flex-direction: column !important; width: auto !important; min-width: 62px; gap: 3px !important; padding: 8px 10px !important; position: relative; }
+  .nav-label { flex: none !important; text-align: center !important; }
+  .nav-label > span:last-child { display: none !important; }   /* hide EN sub-label */
+  .nav-badge { position: absolute; top: 2px; right: 6px; }
+
+  /* Topbar */
+  .topbar { padding: 0 14px !important; gap: 10px !important; }
+  .topbar-search, .topbar-sub { display: none !important; }
+  .main-scroll { padding: 16px !important; }
+
+  /* Multi-column grids collapse */
+  [style*="repeat(4,1fr)"], [style*="repeat(3,1fr)"] { grid-template-columns: repeat(2, 1fr) !important; }
+  [style*="1.6fr 1fr"], [style*="1.45fr 1fr"], [style*="1fr 1fr"] { grid-template-columns: 1fr !important; }
+
+  /* Result header (score ring + action buttons) wraps */
+  [style*="gap:22px"] { flex-wrap: wrap !important; }
+
+  /* Data tables scroll horizontally instead of squashing */
+  .hscroll { overflow-x: auto !important; -webkit-overflow-scrolling: touch; }
+  .wide-row { min-width: 700px; }
+
+  /* Modals / overlays fit the viewport */
+  [style*="width:440px"] { width: auto !important; max-width: calc(100vw - 32px) !important; }
+}
+
+@media (max-width: 520px) {
+  .topbar-cta-text { display: none !important; }   /* CTA becomes an icon button */
+  [style*="repeat(4,1fr)"] { grid-template-columns: repeat(2, 1fr) !important; }
+}
