@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **AdGuard** — ระบบตรวจจับโฆษณาเกินจริงด้วย AI (False Advertising Detection System). A Thai government-style web prototype for detecting false/misleading advertising, built for users at อย. (FDA), สคบ. (OCPB), กสทช., and DSI.
 
-Cases and AI-context are **persisted in SQLite**, and the **"ตรวจสอบใหม่" (New Check) flow calls the real Claude API** via a small Node backend. (Dashboard headline stat cards are still illustrative constants.)
+Cases and AI-context are **persisted in Postgres (Supabase)**, and the **"ตรวจสอบใหม่" (New Check) flow calls the real Claude API** via a small Node backend. (Dashboard headline stat cards are still illustrative constants.)
 
 ## Two front-ends, one backend
 
@@ -20,7 +20,7 @@ There are **two interchangeable front-ends** that both talk to the same Express 
 ```bash
 npm install                 # backend deps
 npm run client:install      # client deps (first time)
-cp .env.example .env        # add your ANTHROPIC_API_KEY
+cp .env.example .env        # add ANTHROPIC_API_KEY + DATABASE_URL (Supabase)
 
 # Dev (two terminals): Vite on :5173 proxies /api → Express on :3000
 npm run client:dev
@@ -44,7 +44,7 @@ npm test          # backend only (test/*.test.js — Node env)
 npm run test:all  # backend + frontend (client/src/**/*.test.{js,jsx})
 ```
 
-- **Backend** (`test/`, `vitest.config.js`, Node env) — `db.test.js` covers seeding, counts, `insertCaseFromAnalysis`, `referCase`, context insert/toggle; `api.test.js` drives the Express routes with **supertest**. Both set `process.env.ADGUARD_DB` to a temp file so the real `adguard.db` is never touched. For this to be testable, `server.js` exports `app` and only calls `listen()` when run directly, and `db.js` honours `ADGUARD_DB`.
+- **Backend** (`test/`, `vitest.config.js`, Node env) — `db.test.js` covers seeding, counts, `insertCaseFromAnalysis`, `referCase`, context insert/toggle; `api.test.js` drives the Express routes with **supertest**. Both inject **`pg-mem`** (in-memory Postgres) via `store._useTestPg(newDb().adapters.createPg())` + `await store.init()` before any query, so tests need no real database. For this to work, `server.js` exports `app` and only `init()`s + `listen()`s when run directly.
 - **Frontend** (`client/`, jsdom env, config in `client/vite.config.js` `test` field, setup `client/src/test/setup.js`) — pure-unit tests for `lib/st`, `lib/badges`, `lib/routes`, plus `src/App.test.jsx`, an integration test that mocks `fetch`, renders `<App>` in a `MemoryRouter`, and asserts the dashboard loads cases, sidebar navigation works, and `/result/:id` deep-links render the stored analysis.
 
 When changing an API response shape, update both the route in `server.js` and the matching expectation in `test/api.test.js`; the `App.test.jsx` `fetch` mock also encodes the payload shapes.
@@ -70,7 +70,7 @@ When changing an API response shape, update both the route in `server.js` and th
   - `GET /api/cases?filter=` + `GET /api/cases/:id` — list (with status counts) / fetch one (incl. stored `analysis`).
   - `POST /api/cases/:id/refer` — record an inter-agency referral, flips status → `referred`.
   - `GET/POST /api/context` + `PATCH /api/context/:id/toggle` — knowledge-base CRUD.
-- **`db.js`** — SQLite via `better-sqlite3` (file `adguard.db`, git-ignored, auto-created + seeded on first run). Tables: `cases` (with `analysis_json` / `referral_json` blobs) and `context_items`. Exports query helpers; `nextCaseId()` generates sequential `AD-2026-####` ids.
+- **`db.js`** — Postgres via `pg` (node-postgres). Connects with `DATABASE_URL` (Supabase; SSL auto-enabled for non-localhost hosts). `init()` creates the schema (`cases` with `analysis_json`/`referral_json` `jsonb` columns + `context_items`) and seeds on first run; **all query helpers are `async`**. Column names are snake_case (`risk_th`, `status_th`, `case_date`) and mapped back to the camelCase API shape (`riskTh`, …) in `mapCaseRow`/`mapContext`, so the API output is unchanged. `nextCaseId()` generates sequential `AD-2026-####` ids. `server.js` calls `await store.init()` before `listen()`. `_useTestPg()` lets tests inject an in-memory Postgres.
 - **Frontend data flow** — `app.js` loads `allCases` + `state.contextItems` from the API on startup (seed arrays are an offline fallback). `openCase(id)` fetches the stored analysis into `state.viewAnalysis`, which `resultHTML()` renders. Context add/toggle and referrals POST/PATCH to the API.
 
 ## Responsive layout

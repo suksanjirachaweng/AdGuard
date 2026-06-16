@@ -125,7 +125,7 @@ app.post("/api/analyze", async (req, res) => {
     if (!textBlock) return res.status(502).json({ error: "ไม่ได้รับผลลัพธ์จาก AI" });
 
     const result = JSON.parse(textBlock.text);
-    const caseId = store.insertCaseFromAnalysis(result, { type: mode });
+    const caseId = await store.insertCaseFromAnalysis(result, { type: mode });
     res.json({ ...result, caseId });
   } catch (err) {
     console.error("analyze error:", err?.message || err);
@@ -134,34 +134,40 @@ app.post("/api/analyze", async (req, res) => {
   }
 });
 
-// ---- Case database -------------------------------------------------------
-app.get("/api/cases", (req, res) => {
-  res.json({ cases: store.listCases(req.query.filter), counts: store.countCases() });
-});
-app.get("/api/cases/:id", (req, res) => {
-  const c = store.getCase(req.params.id);
-  if (!c) return res.status(404).json({ error: "ไม่พบเคส" });
-  res.json(c);
-});
-app.post("/api/cases/:id/refer", (req, res) => {
-  const { agencies = [], note = "" } = req.body || {};
-  if (!agencies.length) return res.status(400).json({ error: "ต้องเลือกอย่างน้อย 1 หน่วยงาน" });
-  if (!store.referCase(req.params.id, agencies, note)) return res.status(404).json({ error: "ไม่พบเคส" });
-  res.json({ ok: true });
+// Wrap async handlers so rejected promises become 500s instead of crashing.
+const wrap = (fn) => (req, res) => fn(req, res).catch((err) => {
+  console.error("API error:", err?.message || err);
+  res.status(500).json({ error: "เกิดข้อผิดพลาดของฐานข้อมูล" });
 });
 
+// ---- Case database -------------------------------------------------------
+app.get("/api/cases", wrap(async (req, res) => {
+  res.json({ cases: await store.listCases(req.query.filter), counts: await store.countCases() });
+}));
+app.get("/api/cases/:id", wrap(async (req, res) => {
+  const c = await store.getCase(req.params.id);
+  if (!c) return res.status(404).json({ error: "ไม่พบเคส" });
+  res.json(c);
+}));
+app.post("/api/cases/:id/refer", wrap(async (req, res) => {
+  const { agencies = [], note = "" } = req.body || {};
+  if (!agencies.length) return res.status(400).json({ error: "ต้องเลือกอย่างน้อย 1 หน่วยงาน" });
+  if (!(await store.referCase(req.params.id, agencies, note))) return res.status(404).json({ error: "ไม่พบเคส" });
+  res.json({ ok: true });
+}));
+
 // ---- AI context / knowledge base ----------------------------------------
-app.get("/api/context", (_req, res) => res.json({ items: store.listContext() }));
-app.post("/api/context", (req, res) => {
+app.get("/api/context", wrap(async (_req, res) => res.json({ items: await store.listContext() })));
+app.post("/api/context", wrap(async (req, res) => {
   const { type = "law", title = "", body = "", meta = "" } = req.body || {};
   if (!title.trim()) return res.status(400).json({ error: "ต้องระบุหัวข้อ" });
-  res.json(store.insertContext({ type, title: title.trim(), body: body.trim() || "—", meta }));
-});
-app.patch("/api/context/:id/toggle", (req, res) => {
-  const c = store.toggleContext(Number(req.params.id));
+  res.json(await store.insertContext({ type, title: title.trim(), body: body.trim() || "—", meta }));
+}));
+app.patch("/api/context/:id/toggle", wrap(async (req, res) => {
+  const c = await store.toggleContext(Number(req.params.id));
   if (!c) return res.status(404).json({ error: "ไม่พบบริบท" });
   res.json(c);
-});
+}));
 
 // SPA fallback: serve the React build's index.html for client-side routes
 // (e.g. /result/AD-2026-0481 on refresh). Only when a build exists; API and
@@ -177,10 +183,21 @@ app.get("*", (req, res, next) => {
 // by tests via supertest.
 const isMain = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];
 if (isMain) {
+  if (!process.env.DATABASE_URL && !process.env.PGHOST) {
+    console.error("✗ ยังไม่ได้ตั้งค่าฐานข้อมูล — ใส่ DATABASE_URL หรือ PGHOST/PGPASSWORD/... ใน .env ก่อน (ดู .env.example)");
+    process.exit(1);
+  }
+  try {
+    await store.init();
+  } catch (err) {
+    console.error("✗ เชื่อมต่อฐานข้อมูลไม่สำเร็จ:", err?.message || err);
+    process.exit(1);
+  }
   app.listen(PORT, () => {
     console.log(`AdGuard running → http://localhost:${PORT}`);
+    console.log("✓ เชื่อมต่อ Postgres สำเร็จ");
     if (!process.env.ANTHROPIC_API_KEY) {
-      console.warn("⚠️  ANTHROPIC_API_KEY ยังไม่ได้ตั้งค่า — /api/analyze จะใช้งานไม่ได้ (คัดลอก .env.example เป็น .env)");
+      console.warn("⚠️  ANTHROPIC_API_KEY ยังไม่ได้ตั้งค่า — /api/analyze จะใช้งานไม่ได้");
     }
   });
 }

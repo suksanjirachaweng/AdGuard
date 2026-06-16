@@ -1,19 +1,17 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { tmpdir } from "os";
-import { join } from "path";
-import { rmSync } from "fs";
+import { describe, it, expect, beforeAll } from "vitest";
+import { newDb } from "pg-mem";
 import request from "supertest";
 
-const DB_FILE = join(tmpdir(), "adguard-api-test-" + Date.now() + ".db");
 let app;
 
 beforeAll(async () => {
-  process.env.ADGUARD_DB = DB_FILE;
   delete process.env.ANTHROPIC_API_KEY; // exercise the analyze error path
+  // Inject pg-mem into the shared db module before importing the server, so its
+  // routes use the in-memory Postgres instead of a real connection.
+  const store = await import("../db.js");
+  store._useTestPg(newDb().adapters.createPg());
+  await store.init();
   ({ app } = await import("../server.js"));
-});
-afterAll(() => {
-  for (const ext of ["", "-wal", "-shm"]) { try { rmSync(DB_FILE + ext); } catch {} }
 });
 
 describe("GET /api/cases", () => {
