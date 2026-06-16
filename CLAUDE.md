@@ -63,9 +63,18 @@ When changing an API response shape, update both the route in `server.js` and th
 
 - **`app.js`** — single `state` object + `app` action methods + `render()` that rebuilds `#root` innerHTML on every change (vanilla port of the design's `renderVals()`). Screens switch on `state.screen`. `resultHTML()` branches on `ai` (`state.viewAnalysis`) to render live data vs. the static SlimX mock.
 
+## Authentication
+
+Session auth via a **JWT in an httpOnly cookie** (`adguard_token`), passwords hashed with **bcryptjs**, users in the Postgres `users` table.
+
+- **`db.js`** — `users` table + `getUserByEmail`/`getUserById`/`createUser`. On first run, seeds one admin from `ADMIN_EMAIL`/`ADMIN_PASSWORD` (defaults are dev-only).
+- **`server.js`** — `requireAuth` middleware (verifies the cookie JWT, signed with `JWT_SECRET`). Public: `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me`, `/healthz`, static/SPA. **All data routes (`/api/cases*`, `/api/context*`, `/api/analyze`) require auth.**
+- **Client** — `store.jsx` holds `user`/`authChecked`; `checkAuth()` runs on mount (`GET /api/auth/me`), `login()`/`logout()` hit the auth API. `App.jsx` gates: splash while checking → `<Login/>` when logged out → the app when authed. `Sidebar` shows the user + a logout button. Same-origin cookies are sent automatically.
+- **Env** — `JWT_SECRET` (required in prod), `ADMIN_EMAIL`, `ADMIN_PASSWORD`. On Render, `JWT_SECRET` uses `generateValue: true`.
+
 ## Backend
 
-- **`server.js`** — REST API:
+- **`server.js`** — REST API (auth-protected, see above):
   - `POST /api/analyze` — builds a Thai อย.-style system prompt, sends text or base64 image to Claude, constrains the response with a JSON schema (`ANALYSIS_SCHEMA`) mirroring the result-screen fields, **saves the result as a new case**, and returns `{ ...result, caseId }`. Active "บริบท AI" items are passed as extra context.
   - `GET /api/cases?filter=` + `GET /api/cases/:id` — list (with status counts) / fetch one (incl. stored `analysis`).
   - `POST /api/cases/:id/refer` — record an inter-agency referral, flips status → `referred`.

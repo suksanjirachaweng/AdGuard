@@ -1,4 +1,5 @@
 import pg from "pg";
+import bcrypt from "bcryptjs";
 
 // ----- seed data (inserted only on first run) ----------------------------
 const SEED_CASES = [
@@ -77,6 +78,32 @@ export async function init() {
       active  boolean DEFAULT true
     );
   `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS users (
+      id            serial PRIMARY KEY,
+      email         text UNIQUE NOT NULL,
+      password_hash text NOT NULL,
+      name          text,
+      role          text DEFAULT 'officer',
+      created_at    timestamptz DEFAULT now()
+    );
+  `);
+
+  // Seed a first admin so you can log in immediately. Credentials come from env
+  // (ADMIN_EMAIL / ADMIN_PASSWORD); the defaults are dev-only — change them.
+  const { rows: [uc] } = await pool.query("SELECT COUNT(*)::int AS n FROM users");
+  if (uc.n === 0) {
+    const email = (process.env.ADMIN_EMAIL || "admin@adguard.local").trim().toLowerCase();
+    const pw = process.env.ADMIN_PASSWORD || "changeme1234";
+    const hash = await bcrypt.hash(pw, 10);
+    await pool.query(
+      "INSERT INTO users (email,password_hash,name,role) VALUES ($1,$2,$3,'admin')",
+      [email, hash, "ผู้ดูแลระบบ"]
+    );
+    if (!process.env.ADMIN_PASSWORD) {
+      console.warn(`⚠️  สร้างผู้ดูแลระบบเริ่มต้น: ${email} / changeme1234 — กรุณาตั้ง ADMIN_PASSWORD แล้วเปลี่ยนรหัส`);
+    }
+  }
 
   const { rows: [cc] } = await pool.query("SELECT COUNT(*)::int AS n FROM cases");
   if (cc.n === 0) {
@@ -177,6 +204,23 @@ export async function insertContext({ type, title, body, meta }) {
 export async function toggleContext(id) {
   const { rows } = await pool.query("UPDATE context_items SET active = NOT active WHERE id=$1 RETURNING *", [id]);
   return rows[0] ? mapContext(rows[0]) : null;
+}
+
+// ----- users -------------------------------------------------------------
+export async function getUserByEmail(email) {
+  const { rows } = await pool.query("SELECT * FROM users WHERE email=$1", [String(email).trim().toLowerCase()]);
+  return rows[0] || null;
+}
+export async function getUserById(id) {
+  const { rows } = await pool.query("SELECT id,email,name,role FROM users WHERE id=$1", [id]);
+  return rows[0] || null;
+}
+export async function createUser({ email, passwordHash, name, role = "officer" }) {
+  const { rows } = await pool.query(
+    "INSERT INTO users (email,password_hash,name,role) VALUES ($1,$2,$3,$4) RETURNING id,email,name,role",
+    [String(email).trim().toLowerCase(), passwordHash, name, role]
+  );
+  return rows[0];
 }
 
 export default { init };
