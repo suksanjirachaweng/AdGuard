@@ -169,6 +169,10 @@ app.patch("/api/context/:id/toggle", wrap(async (req, res) => {
   res.json(c);
 }));
 
+// Lightweight health check for uptime pings (UptimeRobot etc.) — no DB hit,
+// keeps a free-tier host awake without loading the database.
+app.get("/healthz", (_req, res) => res.type("text/plain").send("ok"));
+
 // SPA fallback: serve the React build's index.html for client-side routes
 // (e.g. /result/AD-2026-0481 on refresh). Only when a build exists; API and
 // asset requests are already handled by the routes/static middleware above.
