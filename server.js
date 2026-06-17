@@ -236,7 +236,7 @@ app.get("/healthz", (_req, res) => res.type("text/plain").send("ok"));
 const spaIndex = join(__dirname, "public", "index.html");
 app.get("*", (req, res, next) => {
   if (req.method !== "GET" || req.path.startsWith("/api/")) return next();
-  if (existsSync(spaIndex)) return res.sendFile(spaIndex);
+  if (existsSync(spaIndex)) return res.sendFile(spaIndex, { headers: { "Cache-Control": "no-cache" } });
   next();
 });
 
