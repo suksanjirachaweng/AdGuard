@@ -50,19 +50,39 @@ function Seg({ t, sup, sev }) {
 async function exportPdf(el, filename) {
   const { default: html2canvas } = await import("html2canvas");
   const { jsPDF } = await import("jspdf");
-  const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: "#eef2f0" });
-  const imgData = canvas.toDataURL("image/png");
-  const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-  const pageW = pdf.internal.pageSize.getWidth();
-  const pageH = pdf.internal.pageSize.getHeight();
-  const imgH = (canvas.height * pageW) / canvas.width;
-  let y = 0;
-  while (y < imgH) {
-    if (y > 0) pdf.addPage();
-    pdf.addImage(imgData, "PNG", 0, -y, pageW, imgH);
-    y += pageH;
+
+  // Freeze animations so html2canvas captures steady colors
+  const style = document.createElement("style");
+  style.textContent = "*, *::before, *::after { animation: none !important; transition: none !important; }";
+  document.head.appendChild(style);
+
+  try {
+    const canvas = await html2canvas(el, {
+      scale: 2,
+      useCORS: true,
+      allowTaint: true,
+      backgroundColor: "#eef2f0",
+      logging: false,
+      imageTimeout: 0,
+      windowWidth: el.scrollWidth,
+      windowHeight: el.scrollHeight,
+    });
+
+    const imgData = canvas.toDataURL("image/jpeg", 0.95);
+    const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    const pageW = pdf.internal.pageSize.getWidth();
+    const pageH = pdf.internal.pageSize.getHeight();
+    const imgH = (canvas.height * pageW) / canvas.width;
+    let y = 0;
+    while (y < imgH) {
+      if (y > 0) pdf.addPage();
+      pdf.addImage(imgData, "JPEG", 0, -y, pageW, imgH);
+      y += pageH;
+    }
+    pdf.save(filename);
+  } finally {
+    document.head.removeChild(style);
   }
-  pdf.save(filename);
 }
 
 export default function Result() {
