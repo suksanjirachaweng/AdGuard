@@ -87,3 +87,27 @@ textarea:focus,input.fc:focus{border-color:#2f9e6a !important;}
   .ctx-intro { flex-direction: column !important; align-items: flex-start !important; gap: 14px !important; }
   .ctx-intro > button { width: 100% !important; justify-content: center !important; }
 }
+
+/* ===================== PRINT / PDF EXPORT ===================== */
+@media print {
+  /* Hide app chrome */
+  .sidebar, .topbar, .result-actions, .analyzing-overlay { display: none !important; }
+
+  /* Reset layout to full page */
+  body, #root, #root-shell { display: block !important; height: auto !important; overflow: visible !important; background: #fff !important; }
+  .main-scroll { padding: 0 !important; overflow: visible !important; }
+
+  /* Page setup */
+  @page { margin: 14mm 12mm; size: A4 portrait; }
+
+  /* Prevent cutting inside cards and violations */
+  .result-head, .result-actions-row,
+  [style*="border-radius:13px"], [style*="border-radius:14px"],
+  [style*="border-radius:13px;overflow:hidden"] { page-break-inside: avoid; break-inside: avoid; }
+
+  /* Each violation item should not be split */
+  [style*="grid-template-columns:34px 1fr"] { page-break-inside: avoid; break-inside: avoid; }
+
+  /* Remove animations for print */
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
