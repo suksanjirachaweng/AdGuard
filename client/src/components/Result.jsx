@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { st } from "../lib/st.js";
 import { riskBadge, dimColor } from "../lib/badges.js";
@@ -47,49 +47,11 @@ function Seg({ t, sup, sev }) {
   return <span style={st(style)}>{t}<sup style={st(supStyle)}>{sup || ""}</sup></span>;
 }
 
-async function exportPdf(el, filename) {
-  const { default: html2canvas } = await import("html2canvas");
-  const { jsPDF } = await import("jspdf");
-
-  // Freeze animations so html2canvas captures steady colors
-  const style = document.createElement("style");
-  style.textContent = "*, *::before, *::after { animation: none !important; transition: none !important; }";
-  document.head.appendChild(style);
-
-  try {
-    const canvas = await html2canvas(el, {
-      scale: 2,
-      useCORS: true,
-      allowTaint: true,
-      backgroundColor: "#eef2f0",
-      logging: false,
-      imageTimeout: 0,
-      windowWidth: el.scrollWidth,
-      windowHeight: el.scrollHeight,
-    });
-
-    const imgData = canvas.toDataURL("image/jpeg", 0.95);
-    const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-    const pageW = pdf.internal.pageSize.getWidth();
-    const pageH = pdf.internal.pageSize.getHeight();
-    const imgH = (canvas.height * pageW) / canvas.width;
-    let y = 0;
-    while (y < imgH) {
-      if (y > 0) pdf.addPage();
-      pdf.addImage(imgData, "JPEG", 0, -y, pageW, imgH);
-      y += pageH;
-    }
-    pdf.save(filename);
-  } finally {
-    document.head.removeChild(style);
-  }
-}
 
 export default function Result() {
   const { state, go, ensureCase } = useApp();
   const { id } = useParams();
   const contentRef = useRef(null);
-  const [exporting, setExporting] = useState(false);
 
   // Load the case named in the URL (handles deep links + browser back/forward).
   // Skip when the store already holds this case's analysis (e.g. right after analyze()).
@@ -109,16 +71,7 @@ export default function Result() {
   const verdictSummary = ai ? ai.verdictSummary : "AI ตรวจพบข้อความโฆษณาที่อ้างสรรพคุณเกินจริง 4 รายการ โดย 3 รายการเข้าข่ายความผิดตาม พ.ร.บ.อาหาร พ.ศ. 2522 และการแอบอ้างเครื่องหมาย อย. ควรพิจารณาส่งต่อให้สำนักงานคณะกรรมการอาหารและยาดำเนินการ";
   const ringColor = dimColor(rc.score || 0);
 
-  const handleExportPdf = async () => {
-    if (!contentRef.current || exporting) return;
-    setExporting(true);
-    try {
-      const filename = `AdGuard-${rc.id || "report"}-${new Date().toISOString().slice(0, 10)}.pdf`;
-      await exportPdf(contentRef.current, filename);
-    } finally {
-      setExporting(false);
-    }
-  };
+  const handleExportPdf = () => { window.print(); };
   const scoreRing = "position:absolute;inset:0;border-radius:50%;background:conic-gradient(" + ringColor + " 0 " + (rc.score || 0) + "%, #f0e3e1 " + (rc.score || 0) + "% 100%);";
 
   const riskDims = ai ? ai.riskDims.map((r) => ({ name: r.name, pct: r.pct, label: r.label, color: dimColor(r.pct) })) : STATIC_DIMS;
@@ -153,7 +106,7 @@ export default function Result() {
           <button className="h-dark" onClick={() => go("handoff")} style={st("display:flex;align-items:center;justify-content:center;gap:7px;background:#157347;color:#fff;border:none;border-radius:9px;padding:11px 18px;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;box-shadow:0 2px 6px rgba(21,115,71,.3);")}>➤ ส่งต่อหน่วยงาน</button>
           <div style={st("display:flex;gap:8px;")}>
             <button className="h-soft" style={st("flex:1;background:#fff;border:1px solid #d8e2dc;border-radius:9px;padding:9px 12px;font-family:inherit;font-size:12px;font-weight:600;color:#39473f;cursor:pointer;")}>💾 บันทึก</button>
-            <button className="h-soft" onClick={handleExportPdf} disabled={exporting} style={st("flex:1;background:#fff;border:1px solid #d8e2dc;border-radius:9px;padding:9px 12px;font-family:inherit;font-size:12px;font-weight:600;color:#39473f;cursor:" + (exporting ? "wait" : "pointer") + ";opacity:" + (exporting ? ".6" : "1") + ";")}>{exporting ? "⏳ กำลังสร้าง…" : "⤓ PDF"}</button>
+            <button className="h-soft" onClick={handleExportPdf} style={st("flex:1;background:#fff;border:1px solid #d8e2dc;border-radius:9px;padding:9px 12px;font-family:inherit;font-size:12px;font-weight:600;color:#39473f;cursor:pointer;")}>⤓ PDF</button>
           </div>
         </div>
       </div>
