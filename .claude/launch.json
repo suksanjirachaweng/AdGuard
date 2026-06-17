@@ -2,10 +2,16 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "adguard",
+      "name": "backend (Express API)",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["start"],
+      "runtimeArgs": ["run", "dev"],
       "port": 3000
+    },
+    {
+      "name": "client (Vite React)",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "client:dev"],
+      "port": 5173
     }
   ]
 }
