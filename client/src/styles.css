@@ -90,15 +90,23 @@ textarea:focus,input.fc:focus{border-color:#2f9e6a !important;}
 
 /* ===================== PRINT / PDF EXPORT ===================== */
 @media print {
+  /* Force browser to print background colors and images as-is */
+  *, *::before, *::after {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    animation: none !important;
+    transition: none !important;
+  }
+
   /* Hide app chrome */
   .sidebar, .topbar, .result-actions, .analyzing-overlay { display: none !important; }
 
   /* Reset layout to full page */
-  body, #root, #root-shell { display: block !important; height: auto !important; overflow: visible !important; background: #fff !important; }
-  .main-scroll { padding: 0 !important; overflow: visible !important; }
+  body, #root, #root-shell { display: block !important; height: auto !important; overflow: visible !important; background: #eef2f0 !important; }
+  .main-scroll { padding: 16px !important; overflow: visible !important; }
 
   /* Page setup */
-  @page { margin: 14mm 12mm; size: A4 portrait; }
+  @page { margin: 10mm 10mm; size: A4 portrait; }
 
   /* Prevent cutting inside cards and violations */
   .result-head, .result-actions-row,
@@ -107,7 +115,4 @@ textarea:focus,input.fc:focus{border-color:#2f9e6a !important;}
 
   /* Each violation item should not be split */
   [style*="grid-template-columns:34px 1fr"] { page-break-inside: avoid; break-inside: avoid; }
-
-  /* Remove animations for print */
-  *, *::before, *::after { animation: none !important; transition: none !important; }
 }
