@@ -71,7 +71,13 @@ export default function Result() {
   const verdictSummary = ai ? ai.verdictSummary : "AI ตรวจพบข้อความโฆษณาที่อ้างสรรพคุณเกินจริง 4 รายการ โดย 3 รายการเข้าข่ายความผิดตาม พ.ร.บ.อาหาร พ.ศ. 2522 และการแอบอ้างเครื่องหมาย อย. ควรพิจารณาส่งต่อให้สำนักงานคณะกรรมการอาหารและยาดำเนินการ";
   const ringColor = dimColor(rc.score || 0);
 
-  const handleExportPdf = () => { window.print(); };
+  const handleExportPdf = () => {
+    const prev = document.title;
+    document.title = `AdGuard-${rc.id || "report"}-${new Date().toISOString().slice(0, 10)}`;
+    const restore = () => { document.title = prev; window.removeEventListener("afterprint", restore); };
+    window.addEventListener("afterprint", restore);
+    window.print();
+  };
   const scoreRing = "position:absolute;inset:0;border-radius:50%;background:conic-gradient(" + ringColor + " 0 " + (rc.score || 0) + "%, #f0e3e1 " + (rc.score || 0) + "% 100%);";
 
   const riskDims = ai ? ai.riskDims.map((r) => ({ name: r.name, pct: r.pct, label: r.label, color: dimColor(r.pct) })) : STATIC_DIMS;
