@@ -74,8 +74,9 @@ export default function Result() {
   const handleExportPdf = () => {
     const prev = document.title;
     document.title = `AdGuard-${rc.id || "report"}-${new Date().toISOString().slice(0, 10)}`;
+    const restore = () => { document.title = prev; window.removeEventListener("afterprint", restore); };
+    window.addEventListener("afterprint", restore);
     window.print();
-    document.title = prev;
   };
   const scoreRing = "position:absolute;inset:0;border-radius:50%;background:conic-gradient(" + ringColor + " 0 " + (rc.score || 0) + "%, #f0e3e1 " + (rc.score || 0) + "% 100%);";
 
