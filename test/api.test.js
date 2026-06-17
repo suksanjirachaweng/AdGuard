@@ -6,7 +6,6 @@ let app, agent;
 const ADMIN = { email: "tester@adguard.local", password: "test-pass-123" };
 
 beforeAll(async () => {
-  delete process.env.OPENROUTER_API_KEY;       // exercise the analyze error path
   process.env.ADMIN_EMAIL = ADMIN.email;       // seed a known admin
   process.env.ADMIN_PASSWORD = ADMIN.password;
   process.env.JWT_SECRET = "test-secret";
@@ -15,6 +14,7 @@ beforeAll(async () => {
   store._useTestPg(newDb().adapters.createPg());
   await store.init();
   ({ app } = await import("../server.js"));
+  delete process.env.OPENROUTER_API_KEY;       // delete AFTER import so .env loader doesn't restore it
   // Authenticate once; the agent keeps the session cookie for protected routes.
   agent = request.agent(app);
   const res = await agent.post("/api/auth/login").send(ADMIN);

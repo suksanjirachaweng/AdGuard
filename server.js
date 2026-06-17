@@ -163,6 +163,10 @@ app.post("/api/analyze", requireAuth, async (req, res) => {
       });
     }
 
+    if (!process.env.OPENROUTER_API_KEY) {
+      return res.status(503).json({ error: "OPENROUTER_API_KEY ยังไม่ได้ตั้งค่า" });
+    }
+
     const completion = await client.chat.completions.create({
       model: OPENROUTER_MODEL,
       max_tokens: 4096,
@@ -182,7 +186,8 @@ app.post("/api/analyze", requireAuth, async (req, res) => {
       return res.status(422).json({ error: "AI ปฏิเสธการวิเคราะห์เนื้อหานี้" });
     }
 
-    const result = JSON.parse(choice.message.content);
+    const raw = choice.message.content.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/,"").trim();
+    const result = JSON.parse(raw);
     const caseId = await store.insertCaseFromAnalysis(result, { type: mode });
     res.json({ ...result, caseId });
   } catch (err) {
