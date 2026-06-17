@@ -243,9 +243,14 @@ export function AppProvider({ children }) {
   useEffect(() => { checkAuth(); /* eslint-disable-next-line */ }, []);
   useEffect(() => () => { if (ref.current.timer) clearInterval(ref.current.timer); }, []);
 
+  const deleteCase = useCallback(async (id) => {
+    await fetch("/api/cases/" + encodeURIComponent(id), { method: "DELETE" });
+    loadCases(state.caseFilter);
+  }, [loadCases, state.caseFilter]);
+
   const api = { state, set, go, loadCases, loadContext, openCase, ensureCase, setFilter, onFileChosen, analyze,
     toggleAgency, send, resetHandoff, openAddContext, closeAddContext, saveContext, toggleContext,
-    checkAuth, login, logout };
+    checkAuth, login, logout, deleteCase };
 
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>;
 }

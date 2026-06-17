@@ -78,6 +78,24 @@ describe("POST /api/cases/:id/refer", () => {
   });
 });
 
+describe("DELETE /api/cases/:id", () => {
+  it("deletes an existing case", async () => {
+    const list = await agent.get("/api/cases?filter=all");
+    const id = list.body.cases[0]?.id;
+    if (!id) return;
+    const del = await agent.delete(`/api/cases/${id}`);
+    expect(del.status).toBe(200);
+    expect(del.body.ok).toBe(true);
+    const after = await agent.get("/api/cases?filter=all");
+    expect(after.body.cases.find((c) => c.id === id)).toBeUndefined();
+  });
+
+  it("404s for a non-existent case", async () => {
+    const res = await agent.delete("/api/cases/AD-9999-9999");
+    expect(res.status).toBe(404);
+  });
+});
+
 describe("context API", () => {
   it("lists, adds, and toggles", async () => {
     const list = await agent.get("/api/context");

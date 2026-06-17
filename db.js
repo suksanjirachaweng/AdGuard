@@ -187,6 +187,11 @@ export async function referCase(id, agencies, note) {
   return rowCount > 0;
 }
 
+export async function deleteCase(id) {
+  const { rowCount } = await pool.query("DELETE FROM cases WHERE id=$1", [id]);
+  return rowCount > 0;
+}
+
 // ----- context -----------------------------------------------------------
 export async function listContext() {
   const { rows } = await pool.query("SELECT * FROM context_items ORDER BY id DESC");

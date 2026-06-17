@@ -60,7 +60,7 @@ describe("App routing + store integration", () => {
     await userEvent.click(screen.getByRole("button", { name: /ฐานข้อมูลเคส/ }));
     // Cases screen shows filter tabs
     expect(await screen.findByText("ทั้งหมด")).toBeInTheDocument();
-    expect(screen.getByText("Export CSV", { exact: false })).toBeInTheDocument();
+    expect(screen.getByText("Export Excel", { exact: false })).toBeInTheDocument();
   });
 
   it("deep-links to /result/:id and renders the stored AI analysis", async () => {
