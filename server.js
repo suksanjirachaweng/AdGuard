@@ -1,5 +1,5 @@
 import express from "express";
-import Anthropic from "@anthropic-ai/sdk";
+import OpenAI from "openai";
 import cookieParser from "cookie-parser";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
@@ -28,7 +28,12 @@ app.use(cookieParser());
 app.use(express.static(join(__dirname, "public")));
 app.use(express.static(__dirname));
 
-const client = new Anthropic(); // reads ANTHROPIC_API_KEY from env
+const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || "anthropic/claude-opus-4";
+const client = new OpenAI({
+  baseURL: "https://openrouter.ai/api/v1",
+  apiKey: process.env.OPENROUTER_API_KEY || "no-key",
+  defaultHeaders: { "HTTP-Referer": "https://falsead-detector.onrender.com" },
+});
 
 // ---- Authentication (JWT in an httpOnly cookie) -------------------------
 const JWT_SECRET = process.env.JWT_SECRET || "dev-insecure-secret-change-me";
@@ -145,8 +150,8 @@ app.post("/api/analyze", requireAuth, async (req, res) => {
     const userContent = [];
     if (mode === "image" && imageBase64) {
       userContent.push({
-        type: "image",
-        source: { type: "base64", media_type: imageMediaType, data: imageBase64 },
+        type: "image_url",
+        image_url: { url: `data:${imageMediaType};base64,${imageBase64}` },
       });
       userContent.push({ type: "text", text: `วิเคราะห์โฆษณาในรูปภาพนี้ว่ามีการโฆษณาเกินจริงหรือผิดกฎหมายหรือไม่${ctxNote}` });
     } else {
@@ -158,23 +163,26 @@ app.post("/api/analyze", requireAuth, async (req, res) => {
       });
     }
 
-    const message = await client.messages.create({
-      model: "claude-opus-4-8",
-      max_tokens: 16000,
-      thinking: { type: "adaptive" },
-      system: SYSTEM,
-      output_config: { format: { type: "json_schema", schema: ANALYSIS_SCHEMA } },
-      messages: [{ role: "user", content: userContent }],
+    const completion = await client.chat.completions.create({
+      model: OPENROUTER_MODEL,
+      max_tokens: 4096,
+      response_format: {
+        type: "json_schema",
+        json_schema: { name: "analysis", strict: true, schema: ANALYSIS_SCHEMA },
+      },
+      messages: [
+        { role: "system", content: SYSTEM },
+        { role: "user", content: userContent },
+      ],
     });
 
-    if (message.stop_reason === "refusal") {
+    const choice = completion.choices?.[0];
+    if (!choice) return res.status(502).json({ error: "ไม่ได้รับผลลัพธ์จาก AI" });
+    if (choice.finish_reason === "content_filter") {
       return res.status(422).json({ error: "AI ปฏิเสธการวิเคราะห์เนื้อหานี้" });
     }
 
-    const textBlock = message.content.find((b) => b.type === "text");
-    if (!textBlock) return res.status(502).json({ error: "ไม่ได้รับผลลัพธ์จาก AI" });
-
-    const result = JSON.parse(textBlock.text);
+    const result = JSON.parse(choice.message.content);
     const caseId = await store.insertCaseFromAnalysis(result, { type: mode });
     res.json({ ...result, caseId });
   } catch (err) {
@@ -244,8 +252,10 @@ if (isMain) {
   app.listen(PORT, () => {
     console.log(`AdGuard running → http://localhost:${PORT}`);
     console.log("✓ เชื่อมต่อ Postgres สำเร็จ");
-    if (!process.env.ANTHROPIC_API_KEY) {
-      console.warn("⚠️  ANTHROPIC_API_KEY ยังไม่ได้ตั้งค่า — /api/analyze จะใช้งานไม่ได้");
+    if (!process.env.OPENROUTER_API_KEY) {
+      console.warn("⚠️  OPENROUTER_API_KEY ยังไม่ได้ตั้งค่า — /api/analyze จะใช้งานไม่ได้");
+    } else {
+      console.log(`✓ OpenRouter model: ${OPENROUTER_MODEL}`);
     }
   });
 }
