@@ -206,6 +206,12 @@ app.get("/api/cases/:id", requireAuth, wrap(async (req, res) => {
   if (!c) return res.status(404).json({ error: "ไม่พบเคส" });
   res.json(c);
 }));
+app.delete("/api/cases/:id", requireAuth, wrap(async (req, res) => {
+  const ok = await store.deleteCase(req.params.id);
+  if (!ok) return res.status(404).json({ error: "ไม่พบเคส" });
+  res.json({ ok: true });
+}));
+
 app.post("/api/cases/:id/refer", requireAuth, wrap(async (req, res) => {
   const { agencies = [], note = "" } = req.body || {};
   if (!agencies.length) return res.status(400).json({ error: "ต้องเลือกอย่างน้อย 1 หน่วยงาน" });
