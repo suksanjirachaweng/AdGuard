@@ -17,6 +17,10 @@ body{margin:0;font-family:'IBM Plex Sans Thai',system-ui,sans-serif;-webkit-font
 .fw:focus-within{border-color:#2f9e6a !important;}
 textarea:focus,input.fc:focus{border-color:#2f9e6a !important;}
 
+/* Cases view: table on desktop, cards on mobile */
+.cases-cards { display: none; }
+.cases-table { display: block; }
+
 /* ===================== RESPONSIVE ===================== */
 /* The design is built from inline styles; these media-query rules override the
    key structural ones with !important. Attribute selectors target the inline
@@ -53,6 +57,10 @@ textarea:focus,input.fc:focus{border-color:#2f9e6a !important;}
      two-column selectors below DO match (their value has an internal space). */
   .stat-grid { grid-template-columns: repeat(2, 1fr) !important; }
   [style*="1.6fr 1fr"], [style*="1.45fr 1fr"], [style*="1fr 1fr"] { grid-template-columns: 1fr !important; }
+
+  /* Cases: switch from table to cards on mobile */
+  .cases-table { display: none !important; }
+  .cases-cards { display: block !important; }
 
   /* Data tables scroll horizontally instead of squashing */
   .hscroll { overflow-x: auto !important; -webkit-overflow-scrolling: touch; }
