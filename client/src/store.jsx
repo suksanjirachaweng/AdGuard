@@ -25,6 +25,7 @@ const initialState = {
   analyzeError: "",
   aiResult: null,
   viewAnalysis: null,
+  loadingCase: false,
   // cases
   cases: FALLBACK_CASES,
   caseCounts: { all: 24, pending: 7, review: 5, referred: 9, cleared: 3 },
@@ -84,11 +85,12 @@ export function AppProvider({ children }) {
   // Fetch a case's stored AI analysis into state (no navigation). Called by the
   // Result component for whatever :id is in the URL (so deep links work too).
   const ensureCase = useCallback(async (id) => {
-    set({ selectedId: id, viewAnalysis: null });
+    set({ selectedId: id, viewAnalysis: null, loadingCase: true });
     try {
       const r = await fetch("/api/cases/" + encodeURIComponent(id));
-      if (r.ok) { const c = await r.json(); set({ viewAnalysis: c.analysis || null }); }
-    } catch { /* keep static mock */ }
+      if (r.ok) { const c = await r.json(); set({ viewAnalysis: c.analysis || null, loadingCase: false }); }
+      else { set({ loadingCase: false }); }
+    } catch { set({ loadingCase: false }); }
   }, [set]);
 
   const openCase = useCallback((id) => { navigate(pathFor("result") + "/" + encodeURIComponent(id)); }, [navigate]);

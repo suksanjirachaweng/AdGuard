@@ -2,12 +2,6 @@ import { st } from "../lib/st.js";
 import { riskBadge, statusBadge } from "../lib/badges.js";
 import { useApp } from "../store.jsx";
 
-const stats = [
-  { label: "เคสทั้งหมด · Total", value: "1,284", delta: "+18%", sub: "เดือนนี้ · this month", accent: "#2f9e6a" },
-  { label: "รอตรวจสอบ · Pending", value: "47", delta: "+12", sub: "ต้องดำเนินการ", accent: "#e0a92e" },
-  { label: "เสี่ยงสูง · High risk", value: "31", delta: "+6", sub: "พบความผิดชัดเจน", accent: "#d64545" },
-  { label: "ส่งต่อแล้ว · Referred", value: "208", delta: "+9%", sub: "ไปยังหน่วยงาน", accent: "#6b39b8" },
-];
 const chart = [
   { day: "จ.", high: 34, mid: 30, safe: 46 }, { day: "อ.", high: 28, mid: 38, safe: 52 },
   { day: "พ.", high: 44, mid: 34, safe: 40 }, { day: "พฤ.", high: 52, mid: 28, safe: 48 },
@@ -25,6 +19,14 @@ const categories = [
 export default function Dashboard() {
   const { state, go, openCase } = useApp();
   const recent = state.cases.slice(0, 5);
+  const c = state.caseCounts;
+  const highRisk = state.cases.filter((x) => x.risk === "high").length;
+  const stats = [
+    { label: "เคสทั้งหมด · Total", value: c.all, sub: "ในระบบ · in system", accent: "#2f9e6a" },
+    { label: "รอตรวจสอบ · Pending", value: c.pending, sub: "ต้องดำเนินการ", accent: "#e0a92e" },
+    { label: "เสี่ยงสูง · High risk", value: highRisk, sub: "พบความผิดชัดเจน", accent: "#d64545" },
+    { label: "ส่งต่อแล้ว · Referred", value: c.referred, sub: "ไปยังหน่วยงาน", accent: "#6b39b8" },
+  ];
   return (
     <div style={st("max-width:1180px;margin:0 auto;animation:fadeUp .4s ease;")}>
       <div className="stat-grid" style={st("display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:18px;")}>
@@ -32,8 +34,7 @@ export default function Dashboard() {
           <div key={i} className="stat-card" style={st("background:#fff;border:1px solid #e2e9e5;border-radius:13px;padding:18px;position:relative;overflow:hidden;")}>
             <div className="stat-label" style={st("font-size:12px;color:#7d8e86;font-weight:500;margin-bottom:10px;")}>{s.label}</div>
             <div className="stat-numrow" style={st("display:flex;align-items:flex-end;gap:8px;")}>
-              <div className="stat-value" style={st("font-size:32px;font-weight:700;color:#16241d;line-height:1;font-family:'IBM Plex Mono',monospace;")}>{s.value}</div>
-              <div className="stat-delta" style={st("font-size:12px;font-weight:600;font-family:'IBM Plex Mono',monospace;color:" + s.accent)}>{s.delta}</div>
+              <div className="stat-value" style={st("font-size:32px;font-weight:700;color:#16241d;line-height:1;font-family:'IBM Plex Mono',monospace;")}>{s.value ?? "—"}</div>
             </div>
             <div className="stat-sub" style={st("font-size:11px;color:#9aa8a1;margin-top:6px;")}>{s.sub}</div>
             <div style={st("position:absolute;left:0;top:0;bottom:0;width:4px;background:" + s.accent + ";")}></div>

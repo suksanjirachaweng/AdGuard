@@ -14,10 +14,11 @@ export default function Login() {
       <div style={st("width:100%;max-width:400px;")}>
         {/* Brand */}
         <div style={st("display:flex;flex-direction:column;align-items:center;gap:12px;margin-bottom:26px;")}>
-          <div style={st("width:56px;height:56px;border-radius:14px;background:#2f9e6a;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:28px;box-shadow:0 4px 14px rgba(47,158,106,.4);")}>⚖</div>
+          <img src="/logo.png" alt="กระทรวงสาธารณสุข" style={st("width:72px;height:72px;object-fit:contain;border-radius:50%;border:2px solid #d8e2dc;background:#fff;padding:4px;box-shadow:0 4px 14px rgba(0,0,0,.1);")} />
           <div style={st("text-align:center;line-height:1.2;")}>
             <div style={st("font-weight:700;font-size:22px;color:#16241d;letter-spacing:.2px;")}>AdGuard</div>
-            <div style={st("font-size:11px;color:#7d8e86;font-family:'IBM Plex Mono',monospace;letter-spacing:.5px;margin-top:2px;")}>FALSE-AD DETECTION · เข้าสู่ระบบเจ้าหน้าที่</div>
+            <div style={st("font-size:11.5px;color:#39473f;font-weight:500;margin-top:3px;")}>ระบบตรวจจับโฆษณาเกินจริงด้วย AI</div>
+            <div style={st("font-size:10px;color:#7d8e86;font-family:'IBM Plex Mono',monospace;letter-spacing:.5px;margin-top:2px;")}>กระทรวงสาธารณสุข · MINISTRY OF PUBLIC HEALTH</div>
           </div>
         </div>
 
