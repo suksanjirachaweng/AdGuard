@@ -92,7 +92,8 @@ export default function Cases() {
         </button>
       </div>
 
-      <div className="hscroll" style={st("background:#fff;border:1px solid #e2e9e5;border-radius:13px;overflow:hidden;")}>
+      {/* Desktop table */}
+      <div className="cases-table hscroll" style={st("background:#fff;border:1px solid #e2e9e5;border-radius:13px;overflow:hidden;")}>
         <div className="wide-row" style={st("display:grid;grid-template-columns:" + COLS + ";gap:12px;padding:13px 20px;background:#f7faf8;border-bottom:1px solid #eef2f0;font-size:11px;font-weight:600;color:#7d8e86;letter-spacing:.3px;")}>
           <span>CASE ID</span><span>รายการโฆษณา</span><span>ช่องทาง</span><span>ระดับเสี่ยง</span><span>หน่วยงาน</span><span style={st("text-align:center;")}>ผิด</span><span>สถานะ</span><span></span>
         </div>
@@ -131,6 +132,41 @@ export default function Cases() {
             <button style={st(pageBtn)}>3</button>
             <button style={st(pageBtn)}>›</button>
           </div>
+        </div>
+      </div>
+
+      {/* Mobile card list */}
+      <div className="cases-cards">
+        {filtered.map((c) => {
+          const vcolor = c.violations >= 3 ? "#c0392b" : c.violations >= 1 ? "#a9760e" : "#9aa8a1";
+          return (
+            <div key={c.id} onClick={() => openCase(c.id)}
+              style={st("background:#fff;border:1px solid #e2e9e5;border-radius:13px;padding:14px 16px;margin-bottom:10px;cursor:pointer;")}>
+              <div style={st("display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;")}>
+                <span style={st("font-family:'IBM Plex Mono',monospace;font-size:11px;color:#7d8e86;")}>{c.id}</span>
+                <span style={st(riskBadge(c.risk))}>{c.riskTh}</span>
+              </div>
+              <div style={st("font-size:14px;font-weight:600;color:#16241d;line-height:1.35;margin-bottom:6px;")}>{c.title}</div>
+              <div style={st("font-size:11px;color:#9aa8a1;font-family:'IBM Plex Mono',monospace;margin-bottom:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;")}>{c.source}</div>
+              <div style={st("display:flex;align-items:center;gap:10px;flex-wrap:wrap;")}>
+                <span style={st("font-size:12px;color:#5a6b63;display:flex;align-items:center;gap:5px;")}>
+                  <span style={st("width:7px;height:7px;border-radius:50%;background:" + (typeDotColor[c.type] || "#9aa8a1") + ";display:inline-block;")}></span>{c.channel}
+                </span>
+                <span style={st(statusBadge(c.status))}>{c.statusTh}</span>
+                {c.violations > 0 && (
+                  <span style={st("font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;color:" + vcolor + ";")}>{c.violations} จุดผิด</span>
+                )}
+                <button
+                  onClick={(e) => { e.stopPropagation(); setConfirmItem(c); }}
+                  title="ลบเคส"
+                  style={st("margin-left:auto;background:none;border:1px solid transparent;border-radius:7px;color:#c0b8b5;font-size:14px;cursor:pointer;padding:4px 7px;line-height:1;")}
+                >🗑</button>
+              </div>
+            </div>
+          );
+        })}
+        <div style={st("font-size:12px;color:#7d8e86;text-align:center;padding:8px 0;")}>
+          แสดง {filtered.length} จาก {cc.all || filtered.length} เคส
         </div>
       </div>
     </div>
