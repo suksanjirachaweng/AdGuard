@@ -88,7 +88,22 @@ export function AppProvider({ children }) {
     set({ selectedId: id, viewAnalysis: null, loadingCase: true });
     try {
       const r = await fetch("/api/cases/" + encodeURIComponent(id));
-      if (r.ok) { const c = await r.json(); set({ viewAnalysis: c.analysis ? { ...c.analysis, model: c.model || null } : null, loadingCase: false }); }
+      if (r.ok) {
+        const c = await r.json();
+        set({
+          viewAnalysis: c.analysis ? {
+            ...c.analysis,
+            model: c.model || null,
+            latencyMs: c.latencyMs || null,
+            promptTokens: c.promptTokens || null,
+            completionTokens: c.completionTokens || null,
+            expertRiskLevel: c.expertRiskLevel || null,
+            expertVerdict: c.expertVerdict || null,
+            officerOverride: !!c.officerOverride,
+          } : null,
+          loadingCase: false,
+        });
+      }
       else { set({ loadingCase: false }); }
     } catch { set({ loadingCase: false }); }
   }, [set]);
@@ -134,7 +149,17 @@ export function AppProvider({ children }) {
           const result = s.result;
           if (result) {
             const id = result.caseId || "AI";
-            set({ analyzing: false, selectedId: id, viewAnalysis: { ...result, model: result.model || null }, aiResult: result });
+            set({
+              analyzing: false, selectedId: id, aiResult: result,
+              viewAnalysis: {
+                ...result,
+                model: result.model || null,
+                latencyMs: result.latencyMs || null,
+                promptTokens: result.promptTokens || null,
+                completionTokens: result.completionTokens || null,
+                expertRiskLevel: null, expertVerdict: null, officerOverride: false,
+              },
+            });
             navigate(pathFor("result") + "/" + encodeURIComponent(id));
             loadCases();
           } else {
@@ -245,6 +270,14 @@ export function AppProvider({ children }) {
   useEffect(() => { checkAuth(); /* eslint-disable-next-line */ }, []);
   useEffect(() => () => { if (ref.current.timer) clearInterval(ref.current.timer); }, []);
 
+  const setVerdict = useCallback(async (id, payload) => {
+    await fetch("/api/cases/" + encodeURIComponent(id) + "/verdict", {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    set({ viewAnalysis: state.viewAnalysis ? { ...state.viewAnalysis, ...payload } : null });
+  }, [set, state.viewAnalysis]);
+
   const deleteCase = useCallback(async (id) => {
     await fetch("/api/cases/" + encodeURIComponent(id), { method: "DELETE" });
     loadCases(state.caseFilter);
@@ -252,7 +285,7 @@ export function AppProvider({ children }) {
 
   const api = { state, set, go, loadCases, loadContext, openCase, ensureCase, setFilter, onFileChosen, analyze,
     toggleAgency, send, resetHandoff, openAddContext, closeAddContext, saveContext, toggleContext,
-    checkAuth, login, logout, deleteCase };
+    checkAuth, login, logout, deleteCase, setVerdict };
 
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>;
 }

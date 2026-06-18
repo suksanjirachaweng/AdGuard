@@ -167,6 +167,7 @@ app.post("/api/analyze", requireAuth, async (req, res) => {
       return res.status(503).json({ error: "OPENROUTER_API_KEY ยังไม่ได้ตั้งค่า" });
     }
 
+    const t0 = Date.now();
     const completion = await client.chat.completions.create({
       model: OPENROUTER_MODEL,
       max_tokens: 4096,
@@ -186,11 +187,17 @@ app.post("/api/analyze", requireAuth, async (req, res) => {
       return res.status(422).json({ error: "AI ปฏิเสธการวิเคราะห์เนื้อหานี้" });
     }
 
+    const latencyMs = Date.now() - t0;
+    const usage = completion.usage || {};
     const raw = choice.message.content.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/,"").trim();
     const result = JSON.parse(raw);
     const usedModel = completion.model || OPENROUTER_MODEL;
-    const caseId = await store.insertCaseFromAnalysis(result, { type: mode, model: usedModel });
-    res.json({ ...result, caseId, model: usedModel });
+    const caseId = await store.insertCaseFromAnalysis(result, {
+      type: mode, model: usedModel, latencyMs,
+      promptTokens: usage.prompt_tokens || null,
+      completionTokens: usage.completion_tokens || null,
+    });
+    res.json({ ...result, caseId, model: usedModel, latencyMs, promptTokens: usage.prompt_tokens || null, completionTokens: usage.completion_tokens || null });
   } catch (err) {
     console.error("analyze error:", err?.message || err);
     const status = err?.status || 500;
@@ -217,6 +224,12 @@ app.delete("/api/cases/:id", requireAuth, wrap(async (req, res) => {
   res.json({ ok: true });
 }));
 
+app.patch("/api/cases/:id/verdict", requireAuth, wrap(async (req, res) => {
+  const { expertRiskLevel, expertVerdict, officerOverride } = req.body || {};
+  const ok = await store.setVerdict(req.params.id, { expertRiskLevel, expertVerdict, officerOverride });
+  if (!ok) return res.status(404).json({ error: "ไม่พบเคส" });
+  res.json({ ok: true });
+}));
 app.post("/api/cases/:id/refer", requireAuth, wrap(async (req, res) => {
   const { agencies = [], note = "" } = req.body || {};
   if (!agencies.length) return res.status(400).json({ error: "ต้องเลือกอย่างน้อย 1 หน่วยงาน" });

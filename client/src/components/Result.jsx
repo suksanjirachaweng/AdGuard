@@ -1,8 +1,35 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { st } from "../lib/st.js";
 import { riskBadge, dimColor } from "../lib/badges.js";
 import { useApp } from "../store.jsx";
+
+// Rough cost estimate (USD per 1M tokens) keyed by model substring
+const COST_MAP = [
+  { key: "opus-4",    input: 15,  output: 75  },
+  { key: "opus",      input: 15,  output: 75  },
+  { key: "sonnet-4",  input: 3,   output: 15  },
+  { key: "sonnet",    input: 3,   output: 15  },
+  { key: "haiku",     input: 0.8, output: 4   },
+];
+function estimateCost(model = "", promptTokens, completionTokens) {
+  if (!promptTokens && !completionTokens) return null;
+  const rate = COST_MAP.find((r) => model.toLowerCase().includes(r.key)) || { input: 10, output: 30 };
+  const usd = ((promptTokens || 0) * rate.input + (completionTokens || 0) * rate.output) / 1_000_000;
+  return usd < 0.001 ? "<$0.001" : "$" + usd.toFixed(4);
+}
+
+const RISK_OPTIONS = [
+  { value: "high",   label: "เสี่ยงสูง",   color: "#d64545" },
+  { value: "medium", label: "ปานกลาง",     color: "#e0a92e" },
+  { value: "low",    label: "เสี่ยงต่ำ",   color: "#2f9e6a" },
+  { value: "clear",  label: "ไม่พบความผิด", color: "#6b7d75" },
+];
+const VERDICT_OPTIONS = [
+  { value: "confirmed",  label: "✓ ยืนยันผล AI",       color: "#157347" },
+  { value: "partial",    label: "~ แก้ไขบางส่วน",       color: "#e0a92e" },
+  { value: "overturned", label: "✕ พลิกผล (ไม่เห็นด้วย)", color: "#c0392b" },
+];
 
 const sevHigh = "display:inline-flex;align-items:center;font-size:11px;font-weight:700;padding:3px 11px;border-radius:20px;background:#fdecea;color:#c0392b;border:1px solid #f5c6bf;";
 const sevMed = "display:inline-flex;align-items:center;font-size:11px;font-weight:700;padding:3px 11px;border-radius:20px;background:#fdf4e3;color:#a9760e;border:1px solid #f3e0b5;";
@@ -11,14 +38,32 @@ const numMed = "width:34px;height:34px;border-radius:9px;background:#fdf4e3;colo
 
 
 export default function Result() {
-  const { state, go, ensureCase } = useApp();
+  const { state, go, ensureCase, setVerdict } = useApp();
   const { id } = useParams();
   const contentRef = useRef(null);
+
+  // Hooks must be at top level — before any early returns
+  const ai = state.viewAnalysis || null;
+  const [vForm, setVForm] = useState({
+    expertRiskLevel: ai?.expertRiskLevel || "",
+    expertVerdict: ai?.expertVerdict || "",
+    officerOverride: ai?.officerOverride || false,
+  });
+  const [vSaved, setVSaved] = useState(!!ai?.expertVerdict);
 
   useEffect(() => {
     if (id && (state.selectedId !== id || !state.viewAnalysis)) ensureCase(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  // Sync verdict form when analysis loads (e.g. deep-link)
+  useEffect(() => {
+    if (ai) {
+      setVForm({ expertRiskLevel: ai.expertRiskLevel || "", expertVerdict: ai.expertVerdict || "", officerOverride: !!ai.officerOverride });
+      setVSaved(!!ai.expertVerdict);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.selectedId]);
 
   // Loading skeleton
   if (state.loadingCase) {
@@ -36,7 +81,6 @@ export default function Result() {
     );
   }
 
-  const ai = state.viewAnalysis || null;
   const base = state.cases.find((c) => c.id === state.selectedId) || state.cases[0] || {};
 
   // No-analysis state: case exists in DB but has no AI analysis yet
@@ -62,6 +106,13 @@ export default function Result() {
     );
   }
   const caseModel = ai.model || state.cases.find((c) => c.id === state.selectedId)?.model || null;
+  const totalTokens = (ai.promptTokens || 0) + (ai.completionTokens || 0);
+  const costEst = estimateCost(caseModel, ai.promptTokens, ai.completionTokens);
+  const handleSaveVerdict = async () => {
+    await setVerdict(state.selectedId, vForm);
+    setVSaved(true);
+  };
+
   const rc = { id: state.selectedId || "AI-LIVE", risk: ai.riskLevel, riskTh: ai.riskTh, title: ai.title, source: ai.source, channel: ai.channel, score: ai.riskScore, date: "วันนี้" };
   const catVal = ai.category;
   const confidence = ai.confidence;
@@ -135,6 +186,18 @@ export default function Result() {
           </div>
         </div>
       </div>
+
+      {/* PERFORMANCE STRIP */}
+      {(ai.latencyMs || totalTokens > 0) && (
+        <div style={st("display:flex;align-items:center;gap:16px;flex-wrap:wrap;background:#f7faf8;border:1px solid #e2e9e5;border-radius:10px;padding:10px 16px;margin-bottom:16px;font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#5a6b63;")}>
+          <span style={st("font-size:10px;font-weight:700;color:#9aa8a1;letter-spacing:.8px;")}>AI METADATA</span>
+          {ai.latencyMs && <span>⏱ {(ai.latencyMs / 1000).toFixed(1)}s</span>}
+          {ai.promptTokens && <span>↑ {ai.promptTokens.toLocaleString()} tokens in</span>}
+          {ai.completionTokens && <span>↓ {ai.completionTokens.toLocaleString()} tokens out</span>}
+          {totalTokens > 0 && <span style={st("color:#7d8e86;")}>{totalTokens.toLocaleString()} total</span>}
+          {costEst && <span style={st("color:#6b39b8;font-weight:600;")}>~{costEst}</span>}
+        </div>
+      )}
 
       {/* VERDICT BANNER */}
       <div style={st("background:linear-gradient(100deg,#fdecea,#fdf4f2);border:1px solid #f5c6bf;border-radius:13px;padding:18px 22px;margin-bottom:16px;display:flex;align-items:flex-start;gap:15px;")}>
@@ -232,6 +295,75 @@ export default function Result() {
             </div>
           </div>
         ))}
+      </div>
+
+      {/* EXPERT VERDICT */}
+      <div style={st("background:#fff;border:1px solid #e2e9e5;border-radius:13px;padding:20px 22px;margin-top:16px;")}>
+        <div style={st("display:flex;align-items:center;gap:10px;margin-bottom:16px;")}>
+          <span style={st("font-size:15px;font-weight:600;color:#16241d;")}>ผลตรวจสอบของผู้เชี่ยวชาญ</span>
+          <span style={st("font-size:11px;color:#7d8e86;font-family:'IBM Plex Mono',monospace;")}>Expert Ground Truth</span>
+          {vSaved && <span style={st("margin-left:auto;font-size:11px;color:#157347;background:#eaf5ee;border:1px solid #c3e6cb;padding:2px 10px;border-radius:20px;font-weight:600;")}>✓ บันทึกแล้ว</span>}
+        </div>
+
+        <div style={st("display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:18px;")}>
+          {/* Expert risk level */}
+          <div>
+            <div style={st("font-size:11px;font-weight:600;color:#7d8e86;margin-bottom:8px;")}>ระดับเสี่ยงตามผู้เชี่ยวชาญ</div>
+            <div style={st("display:flex;flex-direction:column;gap:6px;")}>
+              {RISK_OPTIONS.map((o) => {
+                const on = vForm.expertRiskLevel === o.value;
+                return (
+                  <button key={o.value} onClick={() => setVForm((f) => ({ ...f, expertRiskLevel: o.value }))}
+                    style={st("display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:8px;border:1.5px solid " + (on ? o.color : "#e2e9e5") + ";background:" + (on ? o.color + "14" : "#fff") + ";font-family:inherit;font-size:13px;cursor:pointer;text-align:left;")}>
+                    <span style={st("width:10px;height:10px;border-radius:50%;background:" + o.color + ";flex-shrink:0;")}></span>
+                    <span style={st("font-weight:" + (on ? "600" : "400") + ";color:#16241d;")}>{o.label}</span>
+                    {on && <span style={st("margin-left:auto;font-size:12px;color:" + o.color + ";")}>●</span>}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Expert verdict */}
+          <div>
+            <div style={st("font-size:11px;font-weight:600;color:#7d8e86;margin-bottom:8px;")}>ผลสรุปเทียบ AI</div>
+            <div style={st("display:flex;flex-direction:column;gap:6px;")}>
+              {VERDICT_OPTIONS.map((o) => {
+                const on = vForm.expertVerdict === o.value;
+                return (
+                  <button key={o.value} onClick={() => setVForm((f) => ({ ...f, expertVerdict: o.value }))}
+                    style={st("display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:8px;border:1.5px solid " + (on ? o.color : "#e2e9e5") + ";background:" + (on ? o.color + "14" : "#fff") + ";font-family:inherit;font-size:13px;cursor:pointer;text-align:left;")}>
+                    <span style={st("font-weight:" + (on ? "600" : "400") + ";color:#16241d;")}>{o.label}</span>
+                    {on && <span style={st("margin-left:auto;font-size:12px;color:" + o.color + ";")}>●</span>}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div style={st("margin-top:14px;")}>
+              <label style={st("display:flex;align-items:center;gap:9px;cursor:pointer;padding:10px 12px;border-radius:8px;border:1.5px solid " + (vForm.officerOverride ? "#e0a92e" : "#e2e9e5") + ";background:" + (vForm.officerOverride ? "#fdf4e3" : "#fff") + ";")}>
+                <input type="checkbox" checked={vForm.officerOverride} onChange={(e) => setVForm((f) => ({ ...f, officerOverride: e.target.checked }))}
+                  style={st("width:16px;height:16px;accent-color:#e0a92e;cursor:pointer;")} />
+                <span style={st("font-size:13px;color:#16241d;font-family:inherit;")}>เจ้าหน้าที่แก้ไขผล (Officer Override)</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div style={st("display:flex;align-items:center;gap:10px;padding-top:16px;border-top:1px solid #eef2f0;")}>
+          <div style={st("flex:1;font-size:12px;color:#9aa8a1;")}>
+            AI ให้: <strong style={st("color:#16241d;")}>{rc.riskTh}</strong>
+            {vForm.expertRiskLevel && vForm.expertRiskLevel !== ai.riskLevel && (
+              <span style={st("color:#c0392b;")}> → ผู้เชี่ยวชาญให้: <strong>{RISK_OPTIONS.find((o) => o.value === vForm.expertRiskLevel)?.label}</strong></span>
+            )}
+          </div>
+          <button onClick={handleSaveVerdict}
+            disabled={!vForm.expertRiskLevel || !vForm.expertVerdict}
+            className={(!vForm.expertRiskLevel || !vForm.expertVerdict) ? "" : "h-dark"}
+            style={st("background:" + (!vForm.expertRiskLevel || !vForm.expertVerdict ? "#c8d8cc" : "#157347") + ";color:#fff;border:none;border-radius:9px;padding:10px 22px;font-family:inherit;font-size:13.5px;font-weight:600;cursor:" + (!vForm.expertRiskLevel || !vForm.expertVerdict ? "not-allowed" : "pointer") + ";")}>
+            บันทึกผลผู้เชี่ยวชาญ
+          </button>
+        </div>
       </div>
     </div>
   );

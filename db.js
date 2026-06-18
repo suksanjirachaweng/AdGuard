@@ -105,8 +105,14 @@ export async function init() {
     }
   }
 
-  // Non-destructive migration: add model column if it doesn't exist yet
+  // Non-destructive migrations — safe to run on every boot
   await pool.query("ALTER TABLE cases ADD COLUMN IF NOT EXISTS model text");
+  await pool.query("ALTER TABLE cases ADD COLUMN IF NOT EXISTS latency_ms int");
+  await pool.query("ALTER TABLE cases ADD COLUMN IF NOT EXISTS prompt_tokens int");
+  await pool.query("ALTER TABLE cases ADD COLUMN IF NOT EXISTS completion_tokens int");
+  await pool.query("ALTER TABLE cases ADD COLUMN IF NOT EXISTS expert_risk_level text");
+  await pool.query("ALTER TABLE cases ADD COLUMN IF NOT EXISTS expert_verdict text");
+  await pool.query("ALTER TABLE cases ADD COLUMN IF NOT EXISTS officer_override boolean DEFAULT false");
 
   const { rows: [cc] } = await pool.query("SELECT COUNT(*)::int AS n FROM cases");
   if (cc.n === 0) {
@@ -136,6 +142,12 @@ const mapCaseRow = (r) => ({
   risk: r.risk, riskTh: r.risk_th, status: r.status, statusTh: r.status_th,
   date: r.case_date, violations: r.violations, agency: r.agency, score: r.score,
   model: r.model || null,
+  latencyMs: r.latency_ms || null,
+  promptTokens: r.prompt_tokens || null,
+  completionTokens: r.completion_tokens || null,
+  expertRiskLevel: r.expert_risk_level || null,
+  expertVerdict: r.expert_verdict || null,
+  officerOverride: !!r.officer_override,
 });
 const mapCaseFull = (r) => r && ({
   ...mapCaseRow(r),
@@ -174,13 +186,24 @@ export async function insertCaseFromAnalysis(a, meta = {}) {
   const id = await nextCaseId();
   const date = new Date().toLocaleDateString("th-TH", { day: "numeric", month: "short" });
   await pool.query(
-    `INSERT INTO cases (id,title,source,channel,type,risk,risk_th,status,status_th,case_date,violations,agency,score,analysis_json,model)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
+    `INSERT INTO cases
+       (id,title,source,channel,type,risk,risk_th,status,status_th,case_date,violations,agency,score,
+        analysis_json,model,latency_ms,prompt_tokens,completion_tokens)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`,
     [id, a.title || "เคสใหม่", a.source || "-", a.channel || "-", meta.type || "link",
      a.riskLevel, a.riskTh, "pending", "รอตรวจสอบ", date, (a.violations || []).length, "-", a.riskScore,
-     JSON.stringify(a), meta.model || null]
+     JSON.stringify(a), meta.model || null,
+     meta.latencyMs || null, meta.promptTokens || null, meta.completionTokens || null]
   );
   return id;
+}
+
+export async function setVerdict(id, { expertRiskLevel, expertVerdict, officerOverride }) {
+  const { rowCount } = await pool.query(
+    `UPDATE cases SET expert_risk_level=$1, expert_verdict=$2, officer_override=$3 WHERE id=$4`,
+    [expertRiskLevel || null, expertVerdict || null, !!officerOverride, id]
+  );
+  return rowCount > 0;
 }
 
 export async function referCase(id, agencies, note) {
