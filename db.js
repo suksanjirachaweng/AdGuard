@@ -187,6 +187,27 @@ export async function referCase(id, agencies, note) {
   return rowCount > 0;
 }
 
+export async function weeklyStats() {
+  const { rows } = await pool.query(`
+    SELECT
+      date_trunc('day', created_at AT TIME ZONE 'Asia/Bangkok')::date AS day,
+      risk,
+      COUNT(*)::int AS count
+    FROM cases
+    WHERE created_at >= NOW() - INTERVAL '7 days'
+    GROUP BY 1, 2
+    ORDER BY 1
+  `);
+  return rows;
+}
+
+export async function channelStats() {
+  const { rows } = await pool.query(
+    "SELECT channel, COUNT(*)::int AS count FROM cases GROUP BY channel ORDER BY count DESC LIMIT 6"
+  );
+  return rows;
+}
+
 export async function deleteCase(id) {
   const { rowCount } = await pool.query("DELETE FROM cases WHERE id=$1", [id]);
   return rowCount > 0;

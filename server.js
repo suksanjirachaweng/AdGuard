@@ -201,6 +201,10 @@ app.post("/api/analyze", requireAuth, async (req, res) => {
 app.get("/api/cases", requireAuth, wrap(async (req, res) => {
   res.json({ cases: await store.listCases(req.query.filter), counts: await store.countCases() });
 }));
+app.get("/api/cases/stats", requireAuth, wrap(async (_req, res) => {
+  const [weekly, channels] = await Promise.all([store.weeklyStats(), store.channelStats()]);
+  res.json({ weekly, channels });
+}));
 app.get("/api/cases/:id", requireAuth, wrap(async (req, res) => {
   const c = await store.getCase(req.params.id);
   if (!c) return res.status(404).json({ error: "ไม่พบเคส" });

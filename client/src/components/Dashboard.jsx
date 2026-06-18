@@ -1,23 +1,59 @@
+import { useState, useEffect } from "react";
 import { st } from "../lib/st.js";
 import { riskBadge, statusBadge } from "../lib/badges.js";
 import { useApp } from "../store.jsx";
 
-const chart = [
-  { day: "จ.", high: 34, mid: 30, safe: 46 }, { day: "อ.", high: 28, mid: 38, safe: 52 },
-  { day: "พ.", high: 44, mid: 34, safe: 40 }, { day: "พฤ.", high: 52, mid: 28, safe: 48 },
-  { day: "ศ.", high: 38, mid: 42, safe: 56 }, { day: "ส.", high: 22, mid: 24, safe: 38 },
-  { day: "อา.", high: 18, mid: 20, safe: 30 },
-];
-const categories = [
-  { name: "อาหารเสริม / ลดน้ำหนัก", count: "412", pct: 100, color: "#d64545" },
-  { name: "เครื่องสำอาง / สกินแคร์", count: "318", pct: 77, color: "#e0a92e" },
-  { name: "การเงิน / ลงทุน", count: "201", pct: 49, color: "#6b39b8" },
-  { name: "โทรคมนาคม", count: "147", pct: 36, color: "#2563a8" },
-  { name: "เครื่องมือแพทย์", count: "94", pct: 23, color: "#2f9e6a" },
-];
+const DAY_TH = ["อา.", "จ.", "อ.", "พ.", "พฤ.", "ศ.", "ส."];
+const CHANNEL_COLORS = ["#d64545", "#e0a92e", "#6b39b8", "#2563a8", "#2f9e6a", "#7d8e86"];
+
+function buildWeeklyChart(rows) {
+  // Build last-7-days skeleton keyed by ISO date string
+  const days = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const key = d.toISOString().slice(0, 10);
+    days.push({ key, day: DAY_TH[d.getDay()], high: 0, mid: 0, safe: 0 });
+  }
+  rows.forEach(({ day, risk, count }) => {
+    const slot = days.find((d) => d.key === day);
+    if (!slot) return;
+    if (risk === "high") slot.high += count;
+    else if (risk === "medium") slot.mid += count;
+    else slot.safe += count;
+  });
+  // Scale to pixels (max bar = 150px total)
+  const maxTotal = Math.max(...days.map((d) => d.high + d.mid + d.safe), 1);
+  return days.map((d) => ({
+    ...d,
+    highPx: Math.round((d.high / maxTotal) * 150),
+    midPx: Math.round((d.mid / maxTotal) * 150),
+    safePx: Math.round((d.safe / maxTotal) * 150),
+  }));
+}
 
 export default function Dashboard() {
   const { state, go, openCase } = useApp();
+  const [chart, setChart] = useState([]);
+  const [channels, setChannels] = useState([]);
+
+  useEffect(() => {
+    fetch("/api/cases/stats")
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => {
+        if (!d) return;
+        setChart(buildWeeklyChart(d.weekly || []));
+        const rows = d.channels || [];
+        const max = rows[0]?.count || 1;
+        setChannels(rows.map((r, i) => ({
+          name: r.channel || "—",
+          count: String(r.count),
+          pct: Math.round((r.count / max) * 100),
+          color: CHANNEL_COLORS[i] || "#9aa8a1",
+        })));
+      })
+      .catch(() => {});
+  }, []);
   const recent = state.cases.slice(0, 5);
   const c = state.caseCounts;
   const highRisk = state.cases.filter((x) => x.risk === "high").length;
@@ -56,12 +92,12 @@ export default function Dashboard() {
             </div>
           </div>
           <div style={st("display:flex;align-items:flex-end;gap:14px;height:170px;padding-top:10px;")}>
-            {chart.map((d, i) => (
+            {(chart.length ? chart : Array(7).fill({ day: "…", highPx: 0, midPx: 0, safePx: 0 })).map((d, i) => (
               <div key={i} style={st("flex:1;display:flex;flex-direction:column;align-items:center;gap:8px;height:100%;justify-content:flex-end;")}>
                 <div style={st("width:100%;max-width:34px;display:flex;flex-direction:column;border-radius:5px;overflow:hidden;")}>
-                  <div style={st("height:" + d.high + "px;background:#d64545;")}></div>
-                  <div style={st("height:" + d.mid + "px;background:#e0a92e;")}></div>
-                  <div style={st("height:" + d.safe + "px;background:#2f9e6a;")}></div>
+                  <div style={st("height:" + (d.highPx || 0) + "px;background:#d64545;")}></div>
+                  <div style={st("height:" + (d.midPx || 0) + "px;background:#e0a92e;")}></div>
+                  <div style={st("height:" + (d.safePx || 0) + "px;background:#2f9e6a;")}></div>
                 </div>
                 <div style={st("font-size:10.5px;color:#9aa8a1;font-family:'IBM Plex Mono',monospace;")}>{d.day}</div>
               </div>
@@ -69,10 +105,10 @@ export default function Dashboard() {
           </div>
         </div>
         <div style={st("background:#fff;border:1px solid #e2e9e5;border-radius:13px;padding:20px;")}>
-          <div style={st("font-size:14px;font-weight:600;color:#16241d;margin-bottom:2px;")}>หมวดสินค้าที่พบบ่อย</div>
-          <div style={st("font-size:11px;color:#7d8e86;font-family:'IBM Plex Mono',monospace;margin-bottom:16px;")}>Top flagged categories</div>
+          <div style={st("font-size:14px;font-weight:600;color:#16241d;margin-bottom:2px;")}>ช่องทางที่พบบ่อย</div>
+          <div style={st("font-size:11px;color:#7d8e86;font-family:'IBM Plex Mono',monospace;margin-bottom:16px;")}>Top flagged channels</div>
           <div style={st("display:flex;flex-direction:column;gap:14px;")}>
-            {categories.map((c, i) => (
+            {(channels.length ? channels : [{ name: "กำลังโหลด…", count: "—", pct: 0, color: "#eef2f0" }]).map((c, i) => (
               <div key={i}>
                 <div style={st("display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:5px;")}>
                   <span style={st("color:#39473f;font-weight:500;")}>{c.name}</span>
