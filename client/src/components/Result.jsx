@@ -4,48 +4,10 @@ import { st } from "../lib/st.js";
 import { riskBadge, dimColor } from "../lib/badges.js";
 import { useApp } from "../store.jsx";
 
-const mark = (color, bg) => "background:" + bg + ";color:" + color + ";border-radius:4px;padding:1px 3px;font-weight:600;box-decoration-break:clone;-webkit-box-decoration-break:clone;";
-const STATIC_SEGMENTS = [
-  ["🔥 SlimX Pro Detox สุดยอดนวัตกรรมจากธรรมชาติ ", "", null],
-  ["ลดน้ำหนัก 10 กก. ใน 7 วัน", "1", "high"],
-  [" รับรองเห็นผลจริง สูตรเข้มข้นช่วย ", "", null],
-  ["รักษาเบาหวาน ความดัน ไขมันในเลือดให้หายขาด", "2", "high"],
-  [" ดื่มแล้ว ", "", null],
-  ["เห็นผลทันที ไม่ต้องอดอาหาร ไม่ต้องออกกำลังกาย", "3", "medium"],
-  [" ผ่านการ ", "", null],
-  ["รับรองจาก อย. ปลอดภัย 100% ไร้ผลข้างเคียง", "4", "high"],
-  [" สั่งซื้อด่วน! ของมีจำนวนจำกัด 🛒", "", null],
-];
-const STATIC_PINS = [[1, "30%", "22%", "high"], [2, "54%", "60%", "high"], [3, "70%", "35%", "medium"], [4, "40%", "78%", "high"]];
-const STATIC_DIMS = [
-  { name: "อ้างสรรพคุณเกินจริง", pct: 95, label: "95", color: "#d64545" },
-  { name: "อ้างรักษาโรค (ต้องห้าม)", pct: 90, label: "90", color: "#d64545" },
-  { name: "แอบอ้างการรับรอง อย.", pct: 88, label: "88", color: "#d64545" },
-  { name: "ความน่าเชื่อถือหลักฐาน", pct: 24, label: "ต่ำ", color: "#e0a92e" },
-];
-const STATIC_FINDINGS = [
-  "อ้างผลลัพธ์เชิงปริมาณที่เป็นไปไม่ได้ทางการแพทย์ (ลด 10 กก./7 วัน)",
-  "ผลิตภัณฑ์อาหารอ้างสรรพคุณรักษาโรคเฉพาะ ซึ่งกฎหมายห้ามเด็ดขาด",
-  "แอบอ้างเครื่องหมาย อย. โดยเลขที่ อย. บนฉลากไม่ตรงกับฐานข้อมูล",
-];
-const STATIC_VIOLATIONS = [
-  { n: 1, sev: "high", tag: "การโฆษณาคุณประโยชน์เกินจริง", claim: "ลดน้ำหนัก 10 กก. ใน 7 วัน", reason: "อ้างผลการลดน้ำหนักเชิงปริมาณที่เกินจริงและไม่มีหลักฐานทางวิทยาศาสตร์รองรับ เข้าข่ายโฆษณาหลอกลวงผู้บริโภค", advice: "ระงับการเผยแพร่ทันที และเรียกหลักฐานอ้างอิงผลการทดสอบจากผู้ประกอบการ", laws: ["พ.ร.บ.อาหาร 2522 ม.40", "พ.ร.บ.คุ้มครองผู้บริโภค ม.22"] },
-  { n: 2, sev: "high", tag: "อาหารอ้างรักษาโรค (ต้องห้าม)", claim: "รักษาเบาหวาน ความดัน ไขมันในเลือดให้หายขาด", reason: "ผลิตภัณฑ์เสริมอาหารไม่สามารถอ้างสรรพคุณบำบัด บรรเทา หรือรักษาโรคได้ ถือเป็นข้อความต้องห้ามตามประกาศกระทรวงสาธารณสุข", advice: "ส่งเรื่องให้ อย. ออกคำสั่งระงับโฆษณาและพิจารณาโทษตามกฎหมาย", laws: ["พ.ร.บ.อาหาร 2522 ม.41", "ประกาศ สธ. (ฉบับที่ 293)"] },
-  { n: 3, sev: "medium", tag: "ข้อความชวนเชื่อเกินจริง", claim: "เห็นผลทันที ไม่ต้องอดอาหาร ไม่ต้องออกกำลังกาย", reason: "สร้างความเข้าใจผิดต่อผู้บริโภคเรื่องประสิทธิผลและวิธีใช้ ขัดกับหลักโภชนาการพื้นฐาน", advice: "ปรับแก้ข้อความให้มีคำเตือนและไม่รับประกันผลลัพธ์", laws: ["พ.ร.บ.คุ้มครองผู้บริโภค ม.22"] },
-  { n: 4, sev: "high", tag: "แอบอ้างการรับรองหน่วยงาน", claim: "รับรองจาก อย. ปลอดภัย 100% ไร้ผลข้างเคียง", reason: "แอบอ้างเครื่องหมาย อย. และเลขสารบบอาหารที่ตรวจสอบแล้วไม่ตรงกับฐานข้อมูล ถือเป็นการให้ข้อมูลเท็จ", advice: "แจ้งความดำเนินคดีฐานปลอมแปลง/แอบอ้างเครื่องหมายราชการ และส่งต่อ อย.", laws: ["พ.ร.บ.อาหาร 2522 ม.40", "ประมวลกฎหมายอาญา ม.272"] },
-];
-
 const sevHigh = "display:inline-flex;align-items:center;font-size:11px;font-weight:700;padding:3px 11px;border-radius:20px;background:#fdecea;color:#c0392b;border:1px solid #f5c6bf;";
 const sevMed = "display:inline-flex;align-items:center;font-size:11px;font-weight:700;padding:3px 11px;border-radius:20px;background:#fdf4e3;color:#a9760e;border:1px solid #f3e0b5;";
 const numHigh = "width:34px;height:34px;border-radius:9px;background:#fdecea;color:#c0392b;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;font-family:'IBM Plex Mono',monospace;";
 const numMed = "width:34px;height:34px;border-radius:9px;background:#fdf4e3;color:#a9760e;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;font-family:'IBM Plex Mono',monospace;";
-
-function Seg({ t, sup, sev }) {
-  let style = "color:#39473f;", supStyle = "display:none;";
-  if (sev === "high") { style = mark("#9e2b1e", "#fbd9d3"); supStyle = "font-size:10px;color:#c0392b;font-weight:700;margin-left:1px;font-family:'IBM Plex Mono',monospace;"; }
-  else if (sev === "medium") { style = mark("#8a5d08", "#fbeccb"); supStyle = "font-size:10px;color:#a9760e;font-weight:700;margin-left:1px;font-family:'IBM Plex Mono',monospace;"; }
-  return <span style={st(style)}>{t}<sup style={st(supStyle)}>{sup || ""}</sup></span>;
-}
 
 
 export default function Result() {
@@ -53,22 +15,57 @@ export default function Result() {
   const { id } = useParams();
   const contentRef = useRef(null);
 
-  // Load the case named in the URL (handles deep links + browser back/forward).
-  // Skip when the store already holds this case's analysis (e.g. right after analyze()).
   useEffect(() => {
     if (id && (state.selectedId !== id || !state.viewAnalysis)) ensureCase(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
+  // Loading skeleton
+  if (state.loadingCase) {
+    return (
+      <div style={st("max-width:1180px;margin:0 auto;animation:fadeUp .4s ease;")}>
+        <div style={st("background:#fff;border:1px solid #e2e9e5;border-radius:14px;padding:20px 22px;margin-bottom:16px;")}>
+          <div style={st("height:16px;background:#eef2f0;border-radius:6px;width:30%;margin-bottom:12px;animation:pulse 1.2s ease infinite;")}></div>
+          <div style={st("height:24px;background:#eef2f0;border-radius:6px;width:60%;margin-bottom:10px;animation:pulse 1.2s ease infinite;")}></div>
+          <div style={st("height:14px;background:#eef2f0;border-radius:6px;width:45%;animation:pulse 1.2s ease infinite;")}></div>
+        </div>
+        <div style={st("background:#fff;border:1px solid #e2e9e5;border-radius:13px;padding:48px;text-align:center;color:#7d8e86;font-size:14px;")}>
+          กำลังโหลดข้อมูลเคส…
+        </div>
+      </div>
+    );
+  }
+
   const ai = state.viewAnalysis || null;
   const base = state.cases.find((c) => c.id === state.selectedId) || state.cases[0] || {};
-  const rc = ai
-    ? { id: state.selectedId || "AI-LIVE", risk: ai.riskLevel, riskTh: ai.riskTh, title: ai.title, source: ai.source, channel: ai.channel, score: ai.riskScore, date: "วันนี้" }
-    : base;
-  const catVal = ai ? ai.category : "อาหารเสริม";
-  const confidence = ai ? ai.confidence : 96;
-  const verdictTitle = ai ? ai.verdictTitle : "พบการโฆษณาเกินจริง — เข้าข่ายความผิดชัดเจน";
-  const verdictSummary = ai ? ai.verdictSummary : "AI ตรวจพบข้อความโฆษณาที่อ้างสรรพคุณเกินจริง 4 รายการ โดย 3 รายการเข้าข่ายความผิดตาม พ.ร.บ.อาหาร พ.ศ. 2522 และการแอบอ้างเครื่องหมาย อย. ควรพิจารณาส่งต่อให้สำนักงานคณะกรรมการอาหารและยาดำเนินการ";
+
+  // No-analysis state: case exists in DB but has no AI analysis yet
+  if (!ai && state.selectedId && !state.loadingCase) {
+    const caseId = state.selectedId;
+    return (
+      <div style={st("max-width:1180px;margin:0 auto;animation:fadeUp .4s ease;")}>
+        <div style={st("background:#fff;border:1px solid #e2e9e5;border-radius:14px;padding:20px 22px;margin-bottom:16px;display:flex;align-items:center;gap:12px;")}>
+          <span style={st("font-family:'IBM Plex Mono',monospace;font-size:12px;color:#7d8e86;background:#f1f5f3;padding:2px 9px;border-radius:6px;")}>{caseId}</span>
+          {base.riskTh && <span style={st("font-size:12px;color:#7d8e86;")}>{base.riskTh}</span>}
+          {base.title && <span style={st("font-size:15px;font-weight:600;color:#16241d;")}>{base.title}</span>}
+        </div>
+        <div style={st("background:#fff;border:1px solid #e2e9e5;border-radius:13px;padding:56px;text-align:center;")}>
+          <div style={st("font-size:40px;margin-bottom:16px;")}>📋</div>
+          <div style={st("font-size:16px;font-weight:600;color:#16241d;margin-bottom:8px;")}>ยังไม่มีผลวิเคราะห์ AI</div>
+          <div style={st("font-size:13.5px;color:#7d8e86;line-height:1.7;max-width:420px;margin:0 auto 24px;")}>เคสนี้ยังไม่ผ่านการตรวจสอบด้วย AI กดปุ่มด้านล่างเพื่อเริ่มวิเคราะห์ใหม่</div>
+          <div style={st("display:flex;gap:10px;justify-content:center;")}>
+            <button onClick={() => go("upload")} style={st("background:#157347;color:#fff;border:none;border-radius:9px;padding:11px 22px;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;")}>＋ ตรวจสอบใหม่</button>
+            <button onClick={() => go("cases")} style={st("background:#fff;border:1px solid #d8e2dc;border-radius:9px;padding:11px 22px;font-family:inherit;font-size:13px;font-weight:600;color:#39473f;cursor:pointer;")}>← กลับฐานข้อมูลเคส</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  const rc = { id: state.selectedId || "AI-LIVE", risk: ai.riskLevel, riskTh: ai.riskTh, title: ai.title, source: ai.source, channel: ai.channel, score: ai.riskScore, date: "วันนี้" };
+  const catVal = ai.category;
+  const confidence = ai.confidence;
+  const verdictTitle = ai.verdictTitle;
+  const verdictSummary = ai.verdictSummary;
   const ringColor = dimColor(rc.score || 0);
 
   const handleExportPdf = () => {
@@ -80,12 +77,30 @@ export default function Result() {
   };
   const scoreRing = "position:absolute;inset:0;border-radius:50%;background:conic-gradient(" + ringColor + " 0 " + (rc.score || 0) + "%, #f0e3e1 " + (rc.score || 0) + "% 100%);";
 
-  const riskDims = ai ? ai.riskDims.map((r) => ({ name: r.name, pct: r.pct, label: r.label, color: dimColor(r.pct) })) : STATIC_DIMS;
-  const findings = ai ? ai.findings : STATIC_FINDINGS;
-  const violations = ai ? ai.violations.map((v, i) => ({ n: i + 1, sev: v.severity, tag: v.tag, claim: v.claim, reason: v.reason, advice: v.advice, laws: v.laws })) : STATIC_VIOLATIONS;
+  const riskDims = ai.riskDims.map((r) => ({ name: r.name, pct: r.pct, label: r.label, color: dimColor(r.pct) }));
+  const findings = ai.findings;
+  const violations = ai.violations.map((v, i) => ({ n: i + 1, sev: v.severity, tag: v.tag, claim: v.claim, reason: v.reason, advice: v.advice, laws: v.laws }));
+
+  const today = new Date().toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric" });
 
   return (
     <div ref={contentRef} style={st("max-width:1180px;margin:0 auto;animation:fadeUp .4s ease;")}>
+      {/* PRINT-ONLY HEADER */}
+      <div className="print-header" style={st("display:none;")}>
+        <div style={st("display:flex;align-items:center;gap:16px;padding-bottom:14px;border-bottom:2px solid #157347;margin-bottom:18px;")}>
+          <img src="/logo.png" alt="กระทรวงสาธารณสุข" style={st("width:72px;height:72px;object-fit:contain;border-radius:50%;border:2px solid #c8d8cc;background:#fff;padding:4px;flex-shrink:0;")} />
+          <div style={st("flex:1;")}>
+            <div style={st("font-size:15px;font-weight:700;color:#0f3026;")}>กระทรวงสาธารณสุข · Ministry of Public Health</div>
+            <div style={st("font-size:13px;color:#39473f;font-weight:600;margin-top:2px;")}>รายงานผลการตรวจสอบโฆษณาผลิตภัณฑ์สุขภาพ</div>
+            <div style={st("font-size:11px;color:#7d8e86;font-family:'IBM Plex Mono',monospace;margin-top:3px;")}>AdGuard False-Ad Detection System · ระบบตรวจจับโฆษณาเกินจริงด้วย AI</div>
+          </div>
+          <div style={st("text-align:right;font-size:11px;color:#7d8e86;font-family:'IBM Plex Mono',monospace;")}>
+            <div>เลขที่เคส: {rc.id}</div>
+            <div>วันที่พิมพ์: {today}</div>
+            <div>ระดับความเสี่ยง: {rc.riskTh}</div>
+          </div>
+        </div>
+      </div>
       {/* CASE HEADER */}
       <div className="result-head" style={st("background:#fff;border:1px solid #e2e9e5;border-radius:14px;padding:20px 22px;margin-bottom:16px;display:flex;align-items:center;gap:22px;")}>
         <div style={st("flex:1;min-width:0;")}>
@@ -136,17 +151,12 @@ export default function Result() {
           <div style={st("font-size:13.5px;font-weight:600;color:#16241d;margin-bottom:3px;")}>เนื้อหาที่ตรวจสอบ · Analyzed content</div>
           <div style={st("font-size:11px;color:#7d8e86;font-family:'IBM Plex Mono',monospace;margin-bottom:14px;")}>Vision AI · OCR + claim extraction</div>
           <div style={st("position:relative;border-radius:11px;overflow:hidden;border:1px solid #e2e9e5;background-image:repeating-linear-gradient(135deg,#eef2f0 0 12px,#e7ede9 12px 24px);height:200px;margin-bottom:16px;")}>
-            <div style={st("position:absolute;top:10px;left:12px;font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#8a988f;background:rgba(255,255,255,.75);padding:3px 8px;border-radius:5px;")}>{ai ? (state.fileName || rc.source || "analyzed source") : "AD BANNER · slimx_ad.jpg · 1280×720"}</div>
-            {!ai && STATIC_PINS.map(([n, top, left, sev]) => (
-              <div key={n} style={st("position:absolute;top:" + top + ";left:" + left + ";width:24px;height:24px;border-radius:50%;background:" + (sev === "medium" ? "#e0a92e" : "#d64545") + ";color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;font-family:'IBM Plex Mono',monospace;box-shadow:0 2px 6px rgba(0,0,0,.3);border:2px solid #fff;")}>{n}</div>
-            ))}
+            <div style={st("position:absolute;top:10px;left:12px;font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#8a988f;background:rgba(255,255,255,.75);padding:3px 8px;border-radius:5px;")}>{state.fileName || rc.source || "analyzed source"}</div>
             <div style={st("position:absolute;bottom:10px;right:12px;font-family:'IBM Plex Mono',monospace;font-size:10px;color:#8a988f;background:rgba(255,255,255,.75);padding:3px 8px;border-radius:5px;")}>📌 จุดที่ตรวจพบ</div>
           </div>
           <div style={st("font-size:11px;color:#7d8e86;font-weight:600;margin-bottom:8px;")}>ข้อความที่สกัดได้ · Extracted copy</div>
           <div style={st("font-size:14px;line-height:2.1;color:#39473f;background:#f9fbfa;border:1px solid #eef2f0;border-radius:10px;padding:16px;")}>
-            {ai
-              ? <span style={st("color:#39473f;white-space:pre-wrap;")}>{ai.extractedText}</span>
-              : STATIC_SEGMENTS.map(([t, sup, sev], i) => <Seg key={i} t={t} sup={sup} sev={sev} />)}
+            <span style={st("color:#39473f;white-space:pre-wrap;")}>{ai.extractedText}</span>
           </div>
         </div>
 

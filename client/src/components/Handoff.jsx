@@ -8,14 +8,22 @@ const agencyDefs = [
   { key: "dsi", abbr: "DSI", name: "กรมสอบสวนคดีพิเศษ / ตำรวจ", scope: "คดีฉ้อโกง · อาชญากรรมทางเทคโนโลยี" },
   { key: "custom", abbr: "+", name: "กำหนดหน่วยงานเอง", scope: "ระบุหน่วยงานปลายทางอื่น ๆ" },
 ];
-const attachments = [
-  "รายงานการวิเคราะห์ฉบับเต็ม (PDF) · AD-2026-0481",
-  "ภาพหน้าจอโฆษณาต้นฉบับ + ภาพไฮไลต์จุดผิด",
-  "ตารางมาตรากฎหมายที่เกี่ยวข้อง 4 รายการ",
-];
 
 export default function Handoff() {
   const { state, set, go, toggleAgency, send, resetHandoff } = useApp();
+  const ai = state.viewAnalysis;
+  const caseId = state.selectedId || "—";
+  const caseTitle = ai?.title || caseId;
+  const riskTh = ai?.riskTh || "—";
+  const riskScore = ai?.riskScore ?? null;
+  const violationCount = ai?.violations?.length ?? 0;
+  const lawCount = ai?.violations?.flatMap((v) => v.laws || []).length ?? 0;
+  const refNum = caseId.replace("AD-", "REF-") + "-A";
+  const attachments = [
+    `รายงานการวิเคราะห์ฉบับเต็ม (PDF) · ${caseId}`,
+    "ภาพหน้าจอโฆษณาต้นฉบับ + ภาพไฮไลต์จุดผิด",
+    ...(lawCount > 0 ? [`ตารางมาตรากฎหมายที่เกี่ยวข้อง ${lawCount} รายการ`] : []),
+  ];
 
   if (state.handoffSent) {
     return (
@@ -23,8 +31,8 @@ export default function Handoff() {
         <div style={st("background:#fff;border:1px solid #e2e9e5;border-radius:14px;padding:48px;text-align:center;")}>
           <div style={st("width:72px;height:72px;border-radius:50%;background:#e9f4ee;display:flex;align-items:center;justify-content:center;font-size:36px;margin:0 auto 20px;color:#157347;")}>✓</div>
           <div style={st("font-size:20px;font-weight:700;color:#16241d;margin-bottom:8px;")}>ส่งต่อเรื่องเรียบร้อยแล้ว</div>
-          <div style={st("font-size:13.5px;color:#7d8e86;line-height:1.7;max-width:480px;margin:0 auto 8px;")}>ระบบได้บันทึกการส่งต่อเคส <b style={st("font-family:'IBM Plex Mono',monospace;color:#16241d;")}>{state.selectedId}</b> ไปยังหน่วยงานที่เลือก พร้อมแนบรายงานการวิเคราะห์และหลักฐานทั้งหมด หน่วยงานจะได้รับการแจ้งเตือนผ่านระบบเชื่อมต่อภายใน 1 ชั่วโมง</div>
-          <div style={st("font-family:'IBM Plex Mono',monospace;font-size:12px;color:#9aa8a1;margin-bottom:24px;")}>เลขอ้างอิงการส่งต่อ · REF-2026-0481-A</div>
+          <div style={st("font-size:13.5px;color:#7d8e86;line-height:1.7;max-width:480px;margin:0 auto 8px;")}>ระบบได้บันทึกการส่งต่อเคส <b style={st("font-family:'IBM Plex Mono',monospace;color:#16241d;")}>{caseId}</b> ไปยังหน่วยงานที่เลือก พร้อมแนบรายงานการวิเคราะห์และหลักฐานทั้งหมด หน่วยงานจะได้รับการแจ้งเตือนผ่านระบบเชื่อมต่อภายใน 1 ชั่วโมง</div>
+          <div style={st("font-family:'IBM Plex Mono',monospace;font-size:12px;color:#9aa8a1;margin-bottom:24px;")}>เลขอ้างอิงการส่งต่อ · {refNum}</div>
           <div style={st("display:flex;gap:10px;justify-content:center;")}>
             <button onClick={() => go("cases")} style={st("background:#157347;color:#fff;border:none;border-radius:9px;padding:11px 22px;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;")}>กลับสู่ฐานข้อมูลเคส</button>
             <button onClick={resetHandoff} style={st("background:#fff;border:1px solid #d8e2dc;border-radius:9px;padding:11px 22px;font-family:inherit;font-size:13px;font-weight:600;color:#39473f;cursor:pointer;")}>ส่งต่ออีกหน่วยงาน</button>
@@ -42,10 +50,14 @@ export default function Handoff() {
       <div style={st("background:#0f3026;border-radius:13px;padding:18px 22px;margin-bottom:16px;display:flex;align-items:center;gap:16px;color:#fff;")}>
         <div style={st("width:46px;height:46px;border-radius:11px;background:#c0392b;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;")}>⚠</div>
         <div style={st("flex:1;min-width:0;")}>
-          <div style={st("font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#7fae97;margin-bottom:3px;")}>{state.selectedId} · เสี่ยงสูง · 4 ความผิด</div>
-          <div style={st("font-size:15px;font-weight:600;")}>อาหารเสริมลดน้ำหนัก "SlimX Pro Detox"</div>
+          <div style={st("font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#7fae97;margin-bottom:3px;")}>
+            {caseId}{riskTh !== "—" ? ` · ${riskTh}` : ""}{violationCount > 0 ? ` · ${violationCount} ความผิด` : ""}
+          </div>
+          <div style={st("font-size:15px;font-weight:600;")}>{caseTitle}</div>
         </div>
-        <span style={st("font-family:'IBM Plex Mono',monospace;font-size:11px;color:#7fae97;background:rgba(255,255,255,.08);padding:5px 11px;border-radius:7px;")}>RISK 92/100</span>
+        {riskScore !== null && (
+          <span style={st("font-family:'IBM Plex Mono',monospace;font-size:11px;color:#7fae97;background:rgba(255,255,255,.08);padding:5px 11px;border-radius:7px;")}>RISK {riskScore}/100</span>
+        )}
       </div>
 
       <div style={st("background:#fff;border:1px solid #e2e9e5;border-radius:14px;padding:26px;")}>

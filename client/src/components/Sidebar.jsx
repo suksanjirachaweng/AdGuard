@@ -37,10 +37,10 @@ export default function Sidebar({ open, onClose }) {
       }}
     >
       <div className="brand" style={st("padding:22px 20px 20px;display:flex;align-items:center;gap:12px;border-bottom:1px solid rgba(255,255,255,.08);")}>
-        <div style={st("width:38px;height:38px;border-radius:9px;background:#2f9e6a;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:20px;flex-shrink:0;box-shadow:0 2px 8px rgba(47,158,106,.4);")}>⚖</div>
+        <img src="/logo.png" alt="logo" style={st("width:40px;height:40px;object-fit:contain;flex-shrink:0;border-radius:50%;border:2px solid rgba(255,255,255,.3);background:#fff;padding:2px;")} />
         <div className="brand-text" style={st("line-height:1.15;flex:1;")}>
           <div style={st("font-weight:700;font-size:17px;color:#fff;letter-spacing:.2px;")}>AdGuard</div>
-          <div style={st("font-size:10.5px;color:#7fae97;font-family:'IBM Plex Mono',monospace;letter-spacing:.5px;")}>FALSE-AD DETECTION</div>
+          <div style={st("font-size:10.5px;color:#7fae97;font-family:'IBM Plex Mono',monospace;letter-spacing:.5px;")}>กระทรวงสาธารณสุข</div>
         </div>
         <button
           onClick={onClose}

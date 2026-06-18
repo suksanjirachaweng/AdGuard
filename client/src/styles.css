@@ -98,6 +98,9 @@ textarea:focus,input.fc:focus{border-color:#2f9e6a !important;}
     transition: none !important;
   }
 
+  /* Show print-only header */
+  .print-header { display: block !important; }
+
   /* Hide app chrome */
   .sidebar, .topbar, .result-actions, .analyzing-overlay { display: none !important; }
 
