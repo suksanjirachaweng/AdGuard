@@ -188,8 +188,9 @@ app.post("/api/analyze", requireAuth, async (req, res) => {
 
     const raw = choice.message.content.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/,"").trim();
     const result = JSON.parse(raw);
-    const caseId = await store.insertCaseFromAnalysis(result, { type: mode });
-    res.json({ ...result, caseId });
+    const usedModel = completion.model || OPENROUTER_MODEL;
+    const caseId = await store.insertCaseFromAnalysis(result, { type: mode, model: usedModel });
+    res.json({ ...result, caseId, model: usedModel });
   } catch (err) {
     console.error("analyze error:", err?.message || err);
     const status = err?.status || 500;

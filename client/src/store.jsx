@@ -88,7 +88,7 @@ export function AppProvider({ children }) {
     set({ selectedId: id, viewAnalysis: null, loadingCase: true });
     try {
       const r = await fetch("/api/cases/" + encodeURIComponent(id));
-      if (r.ok) { const c = await r.json(); set({ viewAnalysis: c.analysis || null, loadingCase: false }); }
+      if (r.ok) { const c = await r.json(); set({ viewAnalysis: c.analysis ? { ...c.analysis, model: c.model || null } : null, loadingCase: false }); }
       else { set({ loadingCase: false }); }
     } catch { set({ loadingCase: false }); }
   }, [set]);
@@ -134,7 +134,7 @@ export function AppProvider({ children }) {
           const result = s.result;
           if (result) {
             const id = result.caseId || "AI";
-            set({ analyzing: false, selectedId: id, viewAnalysis: result, aiResult: result });
+            set({ analyzing: false, selectedId: id, viewAnalysis: { ...result, model: result.model || null }, aiResult: result });
             navigate(pathFor("result") + "/" + encodeURIComponent(id));
             loadCases();
           } else {

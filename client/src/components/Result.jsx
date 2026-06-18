@@ -61,6 +61,7 @@ export default function Result() {
       </div>
     );
   }
+  const caseModel = ai.model || state.cases.find((c) => c.id === state.selectedId)?.model || null;
   const rc = { id: state.selectedId || "AI-LIVE", risk: ai.riskLevel, riskTh: ai.riskTh, title: ai.title, source: ai.source, channel: ai.channel, score: ai.riskScore, date: "วันนี้" };
   const catVal = ai.category;
   const confidence = ai.confidence;
@@ -114,6 +115,9 @@ export default function Result() {
             <span style={st("font-family:'IBM Plex Mono',monospace;font-size:12px;color:#3d6b54;")}>🔗 {rc.source}</span>
             <span style={st("font-size:11px;color:#7d8e86;background:#eef4f1;border:1px solid #dce6e0;padding:2px 9px;border-radius:6px;")}>{rc.channel}</span>
             <span style={st("font-size:11px;color:#7d8e86;background:#eef4f1;border:1px solid #dce6e0;padding:2px 9px;border-radius:6px;")}>หมวด: {catVal}</span>
+            {caseModel && (
+              <span style={st("font-size:11px;color:#4a3b7a;background:#f0ecfa;border:1px solid #d8ceee;padding:2px 9px;border-radius:6px;font-family:'IBM Plex Mono',monospace;")} title="AI model ที่ใช้วิเคราะห์">🤖 {caseModel}</span>
+            )}
           </div>
         </div>
         <div className="result-ring" style={st("position:relative;width:104px;height:104px;flex-shrink:0;")}>

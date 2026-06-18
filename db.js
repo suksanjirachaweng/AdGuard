@@ -105,6 +105,9 @@ export async function init() {
     }
   }
 
+  // Non-destructive migration: add model column if it doesn't exist yet
+  await pool.query("ALTER TABLE cases ADD COLUMN IF NOT EXISTS model text");
+
   const { rows: [cc] } = await pool.query("SELECT COUNT(*)::int AS n FROM cases");
   if (cc.n === 0) {
     for (const c of SEED_CASES) {
@@ -132,6 +135,7 @@ const mapCaseRow = (r) => ({
   id: r.id, title: r.title, source: r.source, channel: r.channel, type: r.type,
   risk: r.risk, riskTh: r.risk_th, status: r.status, statusTh: r.status_th,
   date: r.case_date, violations: r.violations, agency: r.agency, score: r.score,
+  model: r.model || null,
 });
 const mapCaseFull = (r) => r && ({
   ...mapCaseRow(r),
@@ -170,11 +174,11 @@ export async function insertCaseFromAnalysis(a, meta = {}) {
   const id = await nextCaseId();
   const date = new Date().toLocaleDateString("th-TH", { day: "numeric", month: "short" });
   await pool.query(
-    `INSERT INTO cases (id,title,source,channel,type,risk,risk_th,status,status_th,case_date,violations,agency,score,analysis_json)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+    `INSERT INTO cases (id,title,source,channel,type,risk,risk_th,status,status_th,case_date,violations,agency,score,analysis_json,model)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
     [id, a.title || "เคสใหม่", a.source || "-", a.channel || "-", meta.type || "link",
      a.riskLevel, a.riskTh, "pending", "รอตรวจสอบ", date, (a.violations || []).length, "-", a.riskScore,
-     JSON.stringify(a)]
+     JSON.stringify(a), meta.model || null]
   );
   return id;
 }
