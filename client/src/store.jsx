@@ -100,6 +100,8 @@ export function AppProvider({ children }) {
             expertRiskLevel: c.expertRiskLevel || null,
             expertVerdict: c.expertVerdict || null,
             officerOverride: !!c.officerOverride,
+            expertViolationCount: c.expertViolationCount ?? null,
+            inputHash: c.inputHash || null,
           } : null,
           loadingCase: false,
         });
@@ -158,6 +160,7 @@ export function AppProvider({ children }) {
                 promptTokens: result.promptTokens || null,
                 completionTokens: result.completionTokens || null,
                 expertRiskLevel: null, expertVerdict: null, officerOverride: false,
+                expertViolationCount: null, inputHash: result.inputHash || null,
               },
             });
             navigate(pathFor("result") + "/" + encodeURIComponent(id));

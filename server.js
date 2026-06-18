@@ -3,6 +3,7 @@ import OpenAI from "openai";
 import cookieParser from "cookie-parser";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
+import { createHash } from "crypto";
 import { readFileSync, existsSync } from "fs";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
@@ -167,6 +168,12 @@ app.post("/api/analyze", requireAuth, async (req, res) => {
       return res.status(503).json({ error: "OPENROUTER_API_KEY ยังไม่ได้ตั้งค่า" });
     }
 
+    // Hash the raw input for consistency grouping (same ad, different models)
+    const inputHash = createHash("sha256")
+      .update(mode + "|" + (url || "") + "|" + (text || "") + "|" + (imageBase64 ? imageBase64.slice(0, 64) : ""))
+      .digest("hex")
+      .slice(0, 16);
+
     const t0 = Date.now();
     const completion = await client.chat.completions.create({
       model: OPENROUTER_MODEL,
@@ -193,11 +200,11 @@ app.post("/api/analyze", requireAuth, async (req, res) => {
     const result = JSON.parse(raw);
     const usedModel = completion.model || OPENROUTER_MODEL;
     const caseId = await store.insertCaseFromAnalysis(result, {
-      type: mode, model: usedModel, latencyMs,
+      type: mode, model: usedModel, latencyMs, inputHash,
       promptTokens: usage.prompt_tokens || null,
       completionTokens: usage.completion_tokens || null,
     });
-    res.json({ ...result, caseId, model: usedModel, latencyMs, promptTokens: usage.prompt_tokens || null, completionTokens: usage.completion_tokens || null });
+    res.json({ ...result, caseId, model: usedModel, latencyMs, inputHash, promptTokens: usage.prompt_tokens || null, completionTokens: usage.completion_tokens || null });
   } catch (err) {
     console.error("analyze error:", err?.message || err);
     const status = err?.status || 500;
@@ -225,8 +232,8 @@ app.delete("/api/cases/:id", requireAuth, wrap(async (req, res) => {
 }));
 
 app.patch("/api/cases/:id/verdict", requireAuth, wrap(async (req, res) => {
-  const { expertRiskLevel, expertVerdict, officerOverride } = req.body || {};
-  const ok = await store.setVerdict(req.params.id, { expertRiskLevel, expertVerdict, officerOverride });
+  const { expertRiskLevel, expertVerdict, officerOverride, expertViolationCount } = req.body || {};
+  const ok = await store.setVerdict(req.params.id, { expertRiskLevel, expertVerdict, officerOverride, expertViolationCount });
   if (!ok) return res.status(404).json({ error: "ไม่พบเคส" });
   res.json({ ok: true });
 }));

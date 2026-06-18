@@ -113,6 +113,8 @@ export async function init() {
   await pool.query("ALTER TABLE cases ADD COLUMN IF NOT EXISTS expert_risk_level text");
   await pool.query("ALTER TABLE cases ADD COLUMN IF NOT EXISTS expert_verdict text");
   await pool.query("ALTER TABLE cases ADD COLUMN IF NOT EXISTS officer_override boolean DEFAULT false");
+  await pool.query("ALTER TABLE cases ADD COLUMN IF NOT EXISTS expert_violation_count int");
+  await pool.query("ALTER TABLE cases ADD COLUMN IF NOT EXISTS input_hash text");
 
   const { rows: [cc] } = await pool.query("SELECT COUNT(*)::int AS n FROM cases");
   if (cc.n === 0) {
@@ -148,6 +150,8 @@ const mapCaseRow = (r) => ({
   expertRiskLevel: r.expert_risk_level || null,
   expertVerdict: r.expert_verdict || null,
   officerOverride: !!r.officer_override,
+  expertViolationCount: r.expert_violation_count ?? null,
+  inputHash: r.input_hash || null,
 });
 const mapCaseFull = (r) => r && ({
   ...mapCaseRow(r),
@@ -188,20 +192,22 @@ export async function insertCaseFromAnalysis(a, meta = {}) {
   await pool.query(
     `INSERT INTO cases
        (id,title,source,channel,type,risk,risk_th,status,status_th,case_date,violations,agency,score,
-        analysis_json,model,latency_ms,prompt_tokens,completion_tokens)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`,
+        analysis_json,model,latency_ms,prompt_tokens,completion_tokens,input_hash)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)`,
     [id, a.title || "เคสใหม่", a.source || "-", a.channel || "-", meta.type || "link",
      a.riskLevel, a.riskTh, "pending", "รอตรวจสอบ", date, (a.violations || []).length, "-", a.riskScore,
      JSON.stringify(a), meta.model || null,
-     meta.latencyMs || null, meta.promptTokens || null, meta.completionTokens || null]
+     meta.latencyMs || null, meta.promptTokens || null, meta.completionTokens || null,
+     meta.inputHash || null]
   );
   return id;
 }
 
-export async function setVerdict(id, { expertRiskLevel, expertVerdict, officerOverride }) {
+export async function setVerdict(id, { expertRiskLevel, expertVerdict, officerOverride, expertViolationCount }) {
   const { rowCount } = await pool.query(
-    `UPDATE cases SET expert_risk_level=$1, expert_verdict=$2, officer_override=$3 WHERE id=$4`,
-    [expertRiskLevel || null, expertVerdict || null, !!officerOverride, id]
+    `UPDATE cases SET expert_risk_level=$1, expert_verdict=$2, officer_override=$3, expert_violation_count=$4 WHERE id=$5`,
+    [expertRiskLevel || null, expertVerdict || null, !!officerOverride,
+     expertViolationCount != null ? Number(expertViolationCount) : null, id]
   );
   return rowCount > 0;
 }

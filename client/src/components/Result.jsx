@@ -48,6 +48,7 @@ export default function Result() {
     expertRiskLevel: ai?.expertRiskLevel || "",
     expertVerdict: ai?.expertVerdict || "",
     officerOverride: ai?.officerOverride || false,
+    expertViolationCount: ai?.expertViolationCount ?? "",
   });
   const [vSaved, setVSaved] = useState(!!ai?.expertVerdict);
 
@@ -59,7 +60,7 @@ export default function Result() {
   // Sync verdict form when analysis loads (e.g. deep-link)
   useEffect(() => {
     if (ai) {
-      setVForm({ expertRiskLevel: ai.expertRiskLevel || "", expertVerdict: ai.expertVerdict || "", officerOverride: !!ai.officerOverride });
+      setVForm({ expertRiskLevel: ai.expertRiskLevel || "", expertVerdict: ai.expertVerdict || "", officerOverride: !!ai.officerOverride, expertViolationCount: ai.expertViolationCount ?? "" });
       setVSaved(!!ai.expertVerdict);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -196,6 +197,7 @@ export default function Result() {
           {ai.completionTokens && <span>↓ {ai.completionTokens.toLocaleString()} tokens out</span>}
           {totalTokens > 0 && <span style={st("color:#7d8e86;")}>{totalTokens.toLocaleString()} total</span>}
           {costEst && <span style={st("color:#6b39b8;font-weight:600;")}>~{costEst}</span>}
+          {ai.inputHash && <span style={st("color:#9aa8a1;")} title="input hash — เคสที่มี hash เดียวกันใช้ input เดียวกัน">#{ai.inputHash}</span>}
         </div>
       )}
 
@@ -346,6 +348,29 @@ export default function Result() {
                   style={st("width:16px;height:16px;accent-color:#e0a92e;cursor:pointer;")} />
                 <span style={st("font-size:13px;color:#16241d;font-family:inherit;")}>เจ้าหน้าที่แก้ไขผล (Officer Override)</span>
               </label>
+            </div>
+
+            <div style={st("margin-top:10px;")}>
+              <div style={st("font-size:11px;font-weight:600;color:#7d8e86;margin-bottom:6px;")}>
+                จำนวน violations ที่ถูกต้องจริง
+                <span style={st("font-weight:400;margin-left:4px;")}>(AI พบ {violations.length} จุด)</span>
+              </div>
+              <div style={st("display:flex;align-items:center;gap:10px;")}>
+                <input
+                  type="number" min="0" max={violations.length + 10}
+                  value={vForm.expertViolationCount}
+                  onChange={(e) => setVForm((f) => ({ ...f, expertViolationCount: e.target.value }))}
+                  placeholder="0"
+                  className="fc"
+                  style={st("width:80px;border:1.5px solid #d8e2dc;border-radius:8px;padding:8px 10px;font-family:'IBM Plex Mono',monospace;font-size:14px;color:#16241d;outline:none;text-align:center;")}
+                />
+                <span style={st("font-size:12px;color:#7d8e86;")}>จุดที่ expert ยืนยัน</span>
+                {vForm.expertViolationCount !== "" && violations.length > 0 && (
+                  <span style={st("font-size:12px;font-weight:600;color:" + (Number(vForm.expertViolationCount) === violations.length ? "#157347" : "#c0392b") + ";")}>
+                    {Math.round((Number(vForm.expertViolationCount) / violations.length) * 100)}% precision
+                  </span>
+                )}
+              </div>
             </div>
           </div>
         </div>
