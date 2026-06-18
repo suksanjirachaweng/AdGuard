@@ -224,7 +224,7 @@ export async function analyticsStats() {
   const [summary, calibration, quality, consistency] = await Promise.all([
     pool.query(`
       SELECT
-        model,
+        COALESCE(model, 'ไม่ระบุ')                                                        AS model,
         COUNT(*)::int                                                                      AS total,
         COUNT(expert_verdict)::int                                                         AS with_verdict,
         SUM(CASE WHEN expert_verdict = 'confirmed'  THEN 1 ELSE 0 END)::int               AS confirmed,
@@ -235,29 +235,29 @@ export async function analyticsStats() {
         ROUND(AVG(latency_ms))::int                                                        AS avg_latency_ms,
         ROUND(AVG(prompt_tokens))::int                                                     AS avg_prompt_tokens,
         ROUND(AVG(completion_tokens))::int                                                 AS avg_completion_tokens
-      FROM cases WHERE model IS NOT NULL
-      GROUP BY model ORDER BY total DESC
+      FROM cases
+      GROUP BY COALESCE(model, 'ไม่ระบุ') ORDER BY total DESC
     `),
     pool.query(`
       SELECT
-        model,
+        COALESCE(model, 'ไม่ระบุ')                                                        AS model,
         CASE WHEN score >= 80 THEN '80-100'
              WHEN score >= 60 THEN '60-79'
              WHEN score >= 40 THEN '40-59'
              ELSE '0-39' END                                                               AS bucket,
         COUNT(*)::int                                                                      AS total,
         SUM(CASE WHEN expert_verdict IN ('confirmed','partial') THEN 1 ELSE 0 END)::int   AS agreed
-      FROM cases WHERE model IS NOT NULL AND score IS NOT NULL
-      GROUP BY model, bucket ORDER BY model, bucket DESC
+      FROM cases WHERE score IS NOT NULL
+      GROUP BY COALESCE(model, 'ไม่ระบุ'), bucket ORDER BY model, bucket DESC
     `),
     pool.query(`
       SELECT
-        model,
+        COALESCE(model, 'ไม่ระบุ')                                                        AS model,
         COUNT(*) FILTER (WHERE expert_violation_count IS NOT NULL)::int                   AS with_violation_data,
         ROUND(AVG(violations::numeric), 2)                                                AS avg_ai_violations,
         ROUND(AVG(expert_violation_count::numeric) FILTER (WHERE expert_violation_count IS NOT NULL), 2) AS avg_expert_violations
-      FROM cases WHERE model IS NOT NULL
-      GROUP BY model ORDER BY model
+      FROM cases
+      GROUP BY COALESCE(model, 'ไม่ระบุ') ORDER BY model
     `),
     pool.query(`
       SELECT
