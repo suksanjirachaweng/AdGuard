@@ -264,7 +264,7 @@ export async function analyticsStats() {
         input_hash,
         COUNT(*)::int                                               AS runs,
         COUNT(DISTINCT model)::int                                  AS model_count,
-        ARRAY_AGG(DISTINCT model ORDER BY model)                    AS models,
+        ARRAY_AGG(DISTINCT model)                                   AS models,
         ARRAY_AGG(risk ORDER BY created_at)                         AS risk_levels
       FROM cases WHERE input_hash IS NOT NULL
       GROUP BY input_hash HAVING COUNT(*) > 1
