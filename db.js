@@ -254,8 +254,8 @@ export async function analyticsStats() {
       SELECT
         model,
         COUNT(*) FILTER (WHERE expert_violation_count IS NOT NULL)::int                   AS with_violation_data,
-        ROUND(AVG(violations::float), 2)::float                                           AS avg_ai_violations,
-        ROUND(AVG(expert_violation_count::float) FILTER (WHERE expert_violation_count IS NOT NULL), 2)::float AS avg_expert_violations
+        ROUND(AVG(violations::numeric), 2)                                                AS avg_ai_violations,
+        ROUND(AVG(expert_violation_count::numeric) FILTER (WHERE expert_violation_count IS NOT NULL), 2) AS avg_expert_violations
       FROM cases WHERE model IS NOT NULL
       GROUP BY model ORDER BY model
     `),
