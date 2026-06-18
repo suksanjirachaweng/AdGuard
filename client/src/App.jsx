@@ -10,6 +10,7 @@ import Result from "./components/Result.jsx";
 import Cases from "./components/Cases.jsx";
 import ContextScreen from "./components/ContextScreen.jsx";
 import Handoff from "./components/Handoff.jsx";
+import Analytics from "./components/Analytics.jsx";
 import AnalyzingOverlay from "./components/AnalyzingOverlay.jsx";
 import AddContextModal from "./components/AddContextModal.jsx";
 import Login from "./components/Login.jsx";
@@ -50,6 +51,7 @@ export default function App() {
           <Route path="/cases" element={<Cases />} />
           <Route path="/context" element={<ContextScreen />} />
           <Route path="/handoff" element={<Handoff />} />
+          <Route path="/analytics" element={<Analytics />} />
           <Route path="*" element={<Dashboard />} />
         </Routes>
         <AnalyzingOverlay />

@@ -7,6 +7,7 @@ export const SCREENS = [
   { key: "cases",     path: "/cases" },
   { key: "context",   path: "/context" },
   { key: "handoff",   path: "/handoff" },
+  { key: "analytics", path: "/analytics" },
 ];
 
 export const pathFor = (key) => (SCREENS.find((s) => s.key === key) || SCREENS[0]).path;

@@ -5,6 +5,7 @@ export const navDef = [
   { key: "cases",     th: "ฐานข้อมูลเคส",   en: "Case Database", icon: "▤", badge: "24" },
   { key: "context",   th: "บริบท AI",       en: "AI Context",    icon: "✦" },
   { key: "handoff",   th: "ส่งต่อหน่วยงาน", en: "Referral",      icon: "➤" },
+  { key: "analytics", th: "วัดประสิทธิภาพ", en: "Model Analytics", icon: "◈" },
 ];
 
 export const titles = {
@@ -14,6 +15,7 @@ export const titles = {
   cases:     ["ฐานข้อมูลเคส", "Case Database · 24 records"],
   context:   ["บริบท & ฐานความรู้ AI", "AI Context & Knowledge Base"],
   handoff:   ["ส่งต่อหน่วยงานที่เกี่ยวข้อง", "Inter-agency Referral"],
+  analytics: ["วัดประสิทธิภาพ AI Model", "Model Performance Analytics"],
 };
 
 export const ctxTypes = {

@@ -220,6 +220,65 @@ export async function referCase(id, agencies, note) {
   return rowCount > 0;
 }
 
+export async function analyticsStats() {
+  const [summary, calibration, quality, consistency] = await Promise.all([
+    pool.query(`
+      SELECT
+        model,
+        COUNT(*)::int                                                                      AS total,
+        COUNT(expert_verdict)::int                                                         AS with_verdict,
+        SUM(CASE WHEN expert_verdict = 'confirmed'  THEN 1 ELSE 0 END)::int               AS confirmed,
+        SUM(CASE WHEN expert_verdict = 'partial'    THEN 1 ELSE 0 END)::int               AS partial,
+        SUM(CASE WHEN expert_verdict = 'overturned' THEN 1 ELSE 0 END)::int               AS overturned,
+        SUM(CASE WHEN officer_override = true       THEN 1 ELSE 0 END)::int               AS overrides,
+        SUM(CASE WHEN risk = expert_risk_level AND expert_risk_level IS NOT NULL THEN 1 ELSE 0 END)::int AS risk_match,
+        ROUND(AVG(latency_ms))::int                                                        AS avg_latency_ms,
+        ROUND(AVG(prompt_tokens))::int                                                     AS avg_prompt_tokens,
+        ROUND(AVG(completion_tokens))::int                                                 AS avg_completion_tokens
+      FROM cases WHERE model IS NOT NULL
+      GROUP BY model ORDER BY total DESC
+    `),
+    pool.query(`
+      SELECT
+        model,
+        CASE WHEN score >= 80 THEN '80-100'
+             WHEN score >= 60 THEN '60-79'
+             WHEN score >= 40 THEN '40-59'
+             ELSE '0-39' END                                                               AS bucket,
+        COUNT(*)::int                                                                      AS total,
+        SUM(CASE WHEN expert_verdict IN ('confirmed','partial') THEN 1 ELSE 0 END)::int   AS agreed
+      FROM cases WHERE model IS NOT NULL AND score IS NOT NULL
+      GROUP BY model, bucket ORDER BY model, bucket DESC
+    `),
+    pool.query(`
+      SELECT
+        model,
+        COUNT(*) FILTER (WHERE expert_violation_count IS NOT NULL)::int                   AS with_violation_data,
+        ROUND(AVG(violations::float), 2)::float                                           AS avg_ai_violations,
+        ROUND(AVG(expert_violation_count::float) FILTER (WHERE expert_violation_count IS NOT NULL), 2)::float AS avg_expert_violations
+      FROM cases WHERE model IS NOT NULL
+      GROUP BY model ORDER BY model
+    `),
+    pool.query(`
+      SELECT
+        input_hash,
+        COUNT(*)::int                                               AS runs,
+        COUNT(DISTINCT model)::int                                  AS model_count,
+        ARRAY_AGG(DISTINCT model ORDER BY model)                    AS models,
+        ARRAY_AGG(risk ORDER BY created_at)                         AS risk_levels
+      FROM cases WHERE input_hash IS NOT NULL
+      GROUP BY input_hash HAVING COUNT(*) > 1
+      ORDER BY COUNT(DISTINCT model) DESC, runs DESC LIMIT 20
+    `),
+  ]);
+  return {
+    summary: summary.rows,
+    calibration: calibration.rows,
+    quality: quality.rows,
+    consistency: consistency.rows,
+  };
+}
+
 export async function weeklyStats() {
   const { rows } = await pool.query(`
     SELECT
