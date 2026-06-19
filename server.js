@@ -57,6 +57,10 @@ function requireAuth(req, res, next) {
   try { req.user = jwt.verify(token, JWT_SECRET); next(); }
   catch { res.status(401).json({ error: "เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่" }); }
 }
+function requireAdmin(req, res, next) {
+  if (req.user?.role !== "admin") return res.status(403).json({ error: "เฉพาะผู้ดูแลระบบเท่านั้น" });
+  next();
+}
 
 // Wrap async handlers so rejected promises become 500s instead of crashing.
 const wrap = (fn) => (req, res) => fn(req, res).catch((err) => {
@@ -258,6 +262,40 @@ app.patch("/api/context/:id/toggle", requireAuth, wrap(async (req, res) => {
   const c = await store.toggleContext(Number(req.params.id));
   if (!c) return res.status(404).json({ error: "ไม่พบบริบท" });
   res.json(c);
+}));
+
+// User management (admin only)
+app.get("/api/users", requireAuth, requireAdmin, wrap(async (_req, res) => {
+  res.json({ users: await store.listUsers() });
+}));
+app.post("/api/users", requireAuth, requireAdmin, wrap(async (req, res) => {
+  const { email = "", password = "", name = "", role = "officer" } = req.body || {};
+  if (!email.trim() || !password) return res.status(400).json({ error: "ต้องระบุอีเมลและรหัสผ่าน" });
+  if (await store.getUserByEmail(email.trim())) return res.status(409).json({ error: "อีเมลนี้มีในระบบแล้ว" });
+  const hash = await bcrypt.hash(password, 10);
+  const user = await store.createUser({ email: email.trim(), passwordHash: hash, name: name.trim() || email.trim(), role });
+  const { password_hash: _, ...safe } = user;
+  res.json(safe);
+}));
+app.patch("/api/users/:id", requireAuth, requireAdmin, wrap(async (req, res) => {
+  const { name, role } = req.body || {};
+  const updated = await store.updateUser(req.params.id, { name, role });
+  if (!updated) return res.status(404).json({ error: "ไม่พบผู้ใช้" });
+  res.json(updated);
+}));
+app.delete("/api/users/:id", requireAuth, requireAdmin, wrap(async (req, res) => {
+  if (String(req.params.id) === String(req.user.id)) return res.status(400).json({ error: "ไม่สามารถลบบัญชีตัวเองได้" });
+  const ok = await store.deleteUser(req.params.id);
+  if (!ok) return res.status(404).json({ error: "ไม่พบผู้ใช้" });
+  res.json({ ok: true });
+}));
+app.patch("/api/users/:id/password", requireAuth, requireAdmin, wrap(async (req, res) => {
+  const { password } = req.body || {};
+  if (!password || password.length < 6) return res.status(400).json({ error: "รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร" });
+  const hash = await bcrypt.hash(password, 10);
+  const ok = await store.resetPassword(req.params.id, hash);
+  if (!ok) return res.status(404).json({ error: "ไม่พบผู้ใช้" });
+  res.json({ ok: true });
 }));
 
 // Lightweight health check for uptime pings (UptimeRobot etc.) — no DB hit,

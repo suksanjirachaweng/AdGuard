@@ -6,6 +6,7 @@ export const navDef = [
   { key: "context",   th: "บริบท AI",       en: "AI Context",    icon: "✦" },
   { key: "handoff",   th: "ส่งต่อหน่วยงาน", en: "Referral",      icon: "➤" },
   { key: "analytics", th: "วัดประสิทธิภาพ", en: "Model Analytics", icon: "◈" },
+  { key: "users",     th: "จัดการผู้ใช้",    en: "User Management", icon: "👤", adminOnly: true },
 ];
 
 export const titles = {
@@ -16,6 +17,7 @@ export const titles = {
   context:   ["บริบท & ฐานความรู้ AI", "AI Context & Knowledge Base"],
   handoff:   ["ส่งต่อหน่วยงานที่เกี่ยวข้อง", "Inter-agency Referral"],
   analytics: ["วัดประสิทธิภาพ AI Model", "Model Performance Analytics"],
+  users:     ["จัดการผู้ใช้งาน", "User Management"],
 };
 
 export const ctxTypes = {

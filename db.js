@@ -325,6 +325,33 @@ export async function toggleContext(id) {
 }
 
 // ----- users -------------------------------------------------------------
+export async function listUsers() {
+  const { rows } = await pool.query(
+    "SELECT id,email,name,role,created_at FROM users ORDER BY created_at ASC"
+  );
+  return rows;
+}
+
+export async function updateUser(id, { name, role }) {
+  const { rows } = await pool.query(
+    "UPDATE users SET name=$1, role=$2 WHERE id=$3 RETURNING id,email,name,role,created_at",
+    [name, role, id]
+  );
+  return rows[0] || null;
+}
+
+export async function deleteUser(id) {
+  const { rowCount } = await pool.query("DELETE FROM users WHERE id=$1", [id]);
+  return rowCount > 0;
+}
+
+export async function resetPassword(id, passwordHash) {
+  const { rowCount } = await pool.query(
+    "UPDATE users SET password_hash=$1 WHERE id=$2", [passwordHash, id]
+  );
+  return rowCount > 0;
+}
+
 export async function getUserByEmail(email) {
   const { rows } = await pool.query("SELECT * FROM users WHERE email=$1", [String(email).trim().toLowerCase()]);
   return rows[0] || null;

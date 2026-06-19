@@ -40,6 +40,10 @@ const initialState = {
   handoffAgencies: [],
   handoffNote: "",
   handoffSent: false,
+  // user management
+  users: [],
+  usersLoading: false,
+  usersError: "",
 };
 
 function reducer(state, action) {
@@ -286,9 +290,45 @@ export function AppProvider({ children }) {
     loadCases(state.caseFilter);
   }, [loadCases, state.caseFilter]);
 
+  const loadUsers = useCallback(async () => {
+    set({ usersLoading: true, usersError: "" });
+    try {
+      const r = await fetch("/api/users");
+      if (!r.ok) throw new Error((await r.json()).error || r.statusText);
+      const d = await r.json();
+      set({ users: d.users, usersLoading: false });
+    } catch (e) { set({ usersError: e.message, usersLoading: false }); }
+  }, [set]);
+
+  const createUserAdmin = useCallback(async (payload) => {
+    const r = await fetch("/api/users", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || r.statusText);
+    set({ users: [...state.users, d] });
+  }, [set, state.users]);
+
+  const updateUserAdmin = useCallback(async (id, payload) => {
+    const r = await fetch("/api/users/" + id, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || r.statusText);
+    set({ users: state.users.map((u) => (u.id === id ? d : u)) });
+  }, [set, state.users]);
+
+  const deleteUserAdmin = useCallback(async (id) => {
+    const r = await fetch("/api/users/" + id, { method: "DELETE" });
+    if (!r.ok) { const d = await r.json(); throw new Error(d.error || r.statusText); }
+    set({ users: state.users.filter((u) => u.id !== id) });
+  }, [set, state.users]);
+
+  const resetPasswordAdmin = useCallback(async (id, password) => {
+    const r = await fetch("/api/users/" + id + "/password", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password }) });
+    if (!r.ok) { const d = await r.json(); throw new Error(d.error || r.statusText); }
+  }, []);
+
   const api = { state, set, go, loadCases, loadContext, openCase, ensureCase, setFilter, onFileChosen, analyze,
     toggleAgency, send, resetHandoff, openAddContext, closeAddContext, saveContext, toggleContext,
-    checkAuth, login, logout, deleteCase, setVerdict };
+    checkAuth, login, logout, deleteCase, setVerdict,
+    loadUsers, createUserAdmin, updateUserAdmin, deleteUserAdmin, resetPasswordAdmin };
 
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>;
 }

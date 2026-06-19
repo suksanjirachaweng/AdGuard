@@ -51,7 +51,7 @@ export default function Sidebar({ open, onClose }) {
 
       <nav className="sidebar-nav" style={st("padding:14px 12px;display:flex;flex-direction:column;gap:3px;flex:1;")}>
         <div className="menu-label" style={st("font-size:10px;font-weight:600;color:#5c8a72;letter-spacing:1.2px;padding:8px 12px 6px;")}>เมนูหลัก · MENU</div>
-        {navDef.map((n) => {
+        {navDef.filter((n) => !n.adminOnly || user.role === "admin").map((n) => {
           const active = n.key === screen;
           const btn = "display:flex;align-items:center;gap:11px;width:100%;border:none;cursor:pointer;padding:9px 12px;border-radius:9px;font-family:inherit;transition:background .15s;" +
             (active ? "background:#2f9e6a;color:#fff;" : "background:transparent;color:#a8c4b6;");
