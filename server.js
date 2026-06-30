@@ -300,6 +300,11 @@ app.patch("/api/context/:id/toggle", requireAuth, wrap(async (req, res) => {
   if (!c) return res.status(404).json({ error: "ไม่พบบริบท" });
   res.json(c);
 }));
+app.delete("/api/context/:id", requireAuth, wrap(async (req, res) => {
+  const ok = await store.deleteContext(Number(req.params.id));
+  if (!ok) return res.status(404).json({ error: "ไม่พบบริบท" });
+  res.json({ ok: true });
+}));
 
 // User management (admin only)
 app.get("/api/users", requireAuth, requireAdmin, wrap(async (_req, res) => {

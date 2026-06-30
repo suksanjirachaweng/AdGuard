@@ -256,6 +256,11 @@ export function AppProvider({ children }) {
     }
   }, [set, navigate, state.draftTitle, state.draftBody, state.draftType, state.draftFile, state.contextItems]);
 
+  const deleteContext = useCallback(async (id) => {
+    await fetch("/api/context/" + id, { method: "DELETE" });
+    set({ contextItems: state.contextItems.filter((c) => c.id !== id) });
+  }, [set, state.contextItems]);
+
   const toggleContext = useCallback(async (id) => {
     set({ contextItems: state.contextItems.map((c) => (c.id === id ? { ...c, active: !c.active } : c)) });
     try { await fetch("/api/context/" + id + "/toggle", { method: "PATCH" }); } catch { /* optimistic */ }
@@ -347,7 +352,7 @@ export function AppProvider({ children }) {
   }, []);
 
   const api = { state, set, go, loadCases, loadContext, openCase, ensureCase, setFilter, onFileChosen, analyze,
-    toggleAgency, send, resetHandoff, openAddContext, closeAddContext, saveContext, toggleContext, setDraftFile,
+    toggleAgency, send, resetHandoff, openAddContext, closeAddContext, saveContext, toggleContext, setDraftFile, deleteContext,
     checkAuth, login, logout, deleteCase, setVerdict,
     loadUsers, createUserAdmin, updateUserAdmin, deleteUserAdmin, resetPasswordAdmin };
 

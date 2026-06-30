@@ -324,6 +324,11 @@ export async function toggleContext(id) {
   return rows[0] ? mapContext(rows[0]) : null;
 }
 
+export async function deleteContext(id) {
+  const { rowCount } = await pool.query("DELETE FROM context_items WHERE id=$1", [id]);
+  return rowCount > 0;
+}
+
 // ----- users -------------------------------------------------------------
 export async function listUsers() {
   const { rows } = await pool.query(
