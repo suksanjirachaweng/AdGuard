@@ -311,6 +311,38 @@ app.post("/api/leads/:id/discard", requireAuth, wrap(async (req, res) => {
   if (!lead) return res.status(404).json({ error: "ไม่พบรายการ" });
   res.json(lead);
 }));
+// Collection (Apify): fetch the real page content for a lead instead of
+// just the SERP title+snippet, so AI analysis works from the actual ad
+// copy. Website-only for now — Apify actors for FB/TikTok/Shopee carry
+// real ToS risk and are deferred until that's reviewed (see roadmap).
+app.post("/api/leads/:id/collect", requireAuth, wrap(async (req, res) => {
+  const lead = await store.getLead(Number(req.params.id));
+  if (!lead) return res.status(404).json({ error: "ไม่พบรายการ" });
+  if (lead.platform !== "website") return res.status(400).json({ error: "รองรับเฉพาะแพลตฟอร์มเว็บไซต์ทั่วไปในตอนนี้" });
+  if (!process.env.APIFY_API_TOKEN) return res.status(503).json({ error: "APIFY_API_TOKEN ยังไม่ได้ตั้งค่า" });
+
+  const apifyUrl = "https://api.apify.com/v2/acts/apify~website-content-crawler/run-sync-get-dataset-items?"
+    + new URLSearchParams({ token: process.env.APIFY_API_TOKEN });
+  let items;
+  try {
+    const r = await fetch(apifyUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ startUrls: [{ url: lead.url }], maxCrawlPages: 1, crawlerType: "cheerio" }),
+    });
+    if (!r.ok) return res.status(502).json({ error: `Apify ตอบกลับ HTTP ${r.status}` });
+    items = await r.json();
+  } catch (err) {
+    return res.status(502).json({ error: "เรียก Apify ไม่สำเร็จ: " + err.message });
+  }
+
+  const text = (items?.[0]?.text || "").trim();
+  if (!text) return res.status(422).json({ error: "ไม่สามารถดึงเนื้อหาจากหน้านี้ได้ (อาจต้องใช้ JS render หรือหน้าบล็อกการเข้าถึง)" });
+
+  const updated = await store.updateLeadRawText(lead.id, text.slice(0, 20000));
+  res.json(updated);
+}));
+
 app.post("/api/leads/:id/promote", requireAuth, wrap(async (req, res) => {
   const lead = await store.getLead(Number(req.params.id));
   if (!lead) return res.status(404).json({ error: "ไม่พบรายการ" });

@@ -114,10 +114,11 @@ function DiscoverySection({ onRun, running }) {
 }
 
 export default function Monitoring() {
-  const { state, loadLeads, createLead, promoteLead, discardLead, deleteLead, runDiscovery } = useApp();
+  const { state, loadLeads, createLead, promoteLead, discardLead, deleteLead, runDiscovery, collectLead } = useApp();
   const { leads, leadsLoading, leadsError, leadBusyId, discoveryRunning } = state;
   const [tab, setTab] = useState("pending");
   const [actionError, setActionError] = useState("");
+  const [busyAction, setBusyAction] = useState(""); // "promote" | "collect" | "discard"
 
   useEffect(() => { loadLeads(tab); }, [tab, loadLeads]);
 
@@ -128,14 +129,22 @@ export default function Monitoring() {
   };
 
   const handlePromote = async (id) => {
-    setActionError("");
+    setActionError(""); setBusyAction("promote");
     try { await promoteLead(id); }
     catch (e) { setActionError(e.message); }
+    finally { setBusyAction(""); }
   };
   const handleDiscard = async (id) => {
-    setActionError("");
+    setActionError(""); setBusyAction("discard");
     try { await discardLead(id); }
     catch (e) { setActionError(e.message); }
+    finally { setBusyAction(""); }
+  };
+  const handleCollect = async (id) => {
+    setActionError(""); setBusyAction("collect");
+    try { await collectLead(id); }
+    catch (e) { setActionError(e.message); }
+    finally { setBusyAction(""); }
   };
 
   return (
@@ -145,7 +154,7 @@ export default function Monitoring() {
         <div style={st("flex:1;")}>
           <div style={st("font-size:16px;font-weight:700;margin-bottom:4px;")}>คิวเฝ้าระวังโฆษณาบนอินเทอร์เน็ต</div>
           <div style={st("font-size:12.5px;color:#bcd6c8;line-height:1.6;")}>
-            ค้นหาเว็บไซต์อัตโนมัติด้วย SERP API หรือเพิ่มลิงก์ที่พบเองก็ได้ (เว็บไซต์ / Facebook / TikTok / Shopee) — ระยะถัดไปจะต่อ Apify ให้ดึงเนื้อหาเชิงลึกจากโซเชียลได้ — "ส่งเป็นเคส" จะรัน AI วิเคราะห์เหมือนหน้าตรวจสอบใหม่ทุกประการ
+            ค้นหาเว็บไซต์อัตโนมัติด้วย SERP API หรือเพิ่มลิงก์ที่พบเองก็ได้ — กด "📥 ดึงเนื้อหาเต็ม" (เว็บไซต์ทั่วไป) เพื่อให้ AI วิเคราะห์จากเนื้อหาจริงแทน snippet สั้นๆ — Apify สำหรับ Facebook/TikTok/Shopee ยังรอตรวจสอบ ToS ก่อนเปิดใช้ — "ส่งเป็นเคส" จะรัน AI วิเคราะห์เหมือนหน้าตรวจสอบใหม่ทุกประการ
           </div>
         </div>
       </div>
@@ -196,10 +205,16 @@ export default function Monitoring() {
                     </div>
                   </div>
                   {l.status === "pending" && (
-                    <div style={st("display:flex;gap:8px;flex-shrink:0;")}>
+                    <div style={st("display:flex;gap:8px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end;max-width:200px;")}>
+                      {l.platform === "website" && (
+                        <button onClick={() => handleCollect(l.id)} disabled={busy} title="ดึงเนื้อหาเต็มจากหน้าเว็บแทน snippet สั้นๆ"
+                          style={st("background:#fff;border:1px solid #c9d8d0;border-radius:8px;padding:8px 12px;font-family:inherit;font-size:12px;font-weight:600;color:#157347;cursor:" + (busy ? "not-allowed" : "pointer") + ";white-space:nowrap;")}>
+                          {busy && busyAction === "collect" ? "กำลังดึง…" : "📥 ดึงเนื้อหาเต็ม"}
+                        </button>
+                      )}
                       <button onClick={() => handlePromote(l.id)} disabled={busy}
                         style={st("background:#157347;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-family:inherit;font-size:12px;font-weight:600;cursor:" + (busy ? "not-allowed" : "pointer") + ";white-space:nowrap;")}>
-                        {busy ? "กำลังวิเคราะห์…" : "✓ ส่งเป็นเคส"}
+                        {busy && busyAction === "promote" ? "กำลังวิเคราะห์…" : "✓ ส่งเป็นเคส"}
                       </button>
                       <button onClick={() => handleDiscard(l.id)} disabled={busy}
                         style={st("background:#fff;border:1px solid #d8e2dc;border-radius:8px;padding:8px 14px;font-family:inherit;font-size:12px;font-weight:600;color:#39473f;cursor:" + (busy ? "not-allowed" : "pointer") + ";white-space:nowrap;")}>

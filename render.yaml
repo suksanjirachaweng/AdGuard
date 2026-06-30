@@ -20,6 +20,8 @@ services:
         value: "anthropic/claude-sonnet-4-5"   # เปลี่ยน model ได้โดยไม่ต้อง redeploy — claude-opus-4 เคยพบไม่ตอบตาม JSON schema
       - key: SERPAPI_API_KEY
         sync: false        # ใช้ปุ่ม "ค้นหาตอนนี้" ในหน้าเฝ้าระวัง — สมัครได้ที่ serpapi.com (ไม่ใช่ serper.dev)
+      - key: APIFY_API_TOKEN
+        sync: false        # ใช้ปุ่ม "ดึงเนื้อหาเต็ม" ในหน้าเฝ้าระวัง — สมัครได้ที่ apify.com
       # --- Login (set these in the dashboard) ---
       - key: JWT_SECRET
         generateValue: true   # Render generates a strong random secret

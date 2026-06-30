@@ -355,6 +355,11 @@ export async function markLeadPromoted(id, caseId) {
   return rows[0] ? mapLead(rows[0]) : null;
 }
 
+export async function updateLeadRawText(id, rawText) {
+  const { rows } = await pool.query("UPDATE leads SET raw_text=$2 WHERE id=$1 RETURNING *", [id, rawText]);
+  return rows[0] ? mapLead(rows[0]) : null;
+}
+
 export async function discardLead(id) {
   const { rows } = await pool.query("UPDATE leads SET status='discarded' WHERE id=$1 RETURNING *", [id]);
   return rows[0] ? mapLead(rows[0]) : null;

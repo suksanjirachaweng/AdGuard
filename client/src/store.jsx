@@ -401,6 +401,17 @@ export function AppProvider({ children }) {
     set({ leads: state.leads.filter((l) => l.id !== id) });
   }, [set, state.leads]);
 
+  const collectLead = useCallback(async (id) => {
+    set({ leadBusyId: id });
+    try {
+      const r = await fetch("/api/leads/" + id + "/collect", { method: "POST" });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || r.statusText);
+      set({ leads: state.leads.map((l) => (l.id === id ? d : l)), leadBusyId: null });
+      return d;
+    } catch (e) { set({ leadBusyId: null }); throw e; }
+  }, [set, state.leads]);
+
   const promoteLead = useCallback(async (id) => {
     set({ leadBusyId: id });
     try {
@@ -428,7 +439,7 @@ export function AppProvider({ children }) {
     toggleAgency, send, resetHandoff, openAddContext, closeAddContext, saveContext, toggleContext, setDraftFile, deleteContext, attachContextFile,
     checkAuth, login, logout, deleteCase, setVerdict,
     loadUsers, createUserAdmin, updateUserAdmin, deleteUserAdmin, resetPasswordAdmin,
-    loadLeads, createLead, discardLead, deleteLead, promoteLead, runDiscovery };
+    loadLeads, createLead, discardLead, deleteLead, promoteLead, runDiscovery, collectLead };
 
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>;
 }
