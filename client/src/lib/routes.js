@@ -6,6 +6,7 @@ export const SCREENS = [
   { key: "result",    path: "/result" },
   { key: "cases",     path: "/cases" },
   { key: "context",   path: "/context" },
+  { key: "monitoring", path: "/monitoring" },
   { key: "handoff",   path: "/handoff" },
   { key: "analytics", path: "/analytics" },
   { key: "users",     path: "/users" },

@@ -146,9 +146,12 @@ export default function Result() {
   };
   const scoreRing = "position:absolute;inset:0;border-radius:50%;background:conic-gradient(" + ringColor + " 0 " + (rc.score || 0) + "%, #f0e3e1 " + (rc.score || 0) + "% 100%);";
 
-  const riskDims = ai.riskDims.map((r) => ({ name: r.name, pct: r.pct, label: r.label, color: dimColor(r.pct) }));
-  const findings = ai.findings;
-  const violations = ai.violations.map((v, i) => ({ n: i + 1, sev: v.severity, tag: v.tag, claim: v.claim, reason: v.reason, advice: v.advice, laws: v.laws }));
+  // Defensive: a small number of legacy/older cases were saved before the AI
+  // response shape was validated server-side and may be missing these
+  // arrays — fall back to empty rather than crashing the whole page.
+  const riskDims = (Array.isArray(ai.riskDims) ? ai.riskDims : []).map((r) => ({ name: r.name, pct: r.pct, label: r.label, color: dimColor(r.pct) }));
+  const findings = Array.isArray(ai.findings) ? ai.findings : [];
+  const violations = (Array.isArray(ai.violations) ? ai.violations : []).map((v, i) => ({ n: i + 1, sev: v.severity, tag: v.tag, claim: v.claim, reason: v.reason, advice: v.advice, laws: Array.isArray(v.laws) ? v.laws : [] }));
 
   const today = new Date().toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric" });
 

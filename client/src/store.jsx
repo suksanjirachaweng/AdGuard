@@ -47,6 +47,11 @@ const initialState = {
   users: [],
   usersLoading: false,
   usersError: "",
+  // discovery leads (monitoring queue)
+  leads: [],
+  leadsLoading: false,
+  leadsError: "",
+  leadBusyId: null,
 };
 
 function reducer(state, action) {
@@ -361,10 +366,56 @@ export function AppProvider({ children }) {
     if (!r.ok) { const d = await r.json(); throw new Error(d.error || r.statusText); }
   }, []);
 
+  const loadLeads = useCallback(async (status) => {
+    set({ leadsLoading: true, leadsError: "" });
+    try {
+      const qs = status && status !== "all" ? "?status=" + status : "";
+      const r = await fetch("/api/leads" + qs);
+      if (!r.ok) throw new Error((await r.json()).error || r.statusText);
+      const d = await r.json();
+      set({ leads: d.leads, leadsLoading: false });
+    } catch (e) { set({ leadsError: e.message, leadsLoading: false }); }
+  }, [set]);
+
+  const createLead = useCallback(async (payload) => {
+    const r = await fetch("/api/leads", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || r.statusText);
+    set({ leads: [d, ...state.leads] });
+  }, [set, state.leads]);
+
+  const discardLead = useCallback(async (id) => {
+    set({ leadBusyId: id });
+    try {
+      const r = await fetch("/api/leads/" + id + "/discard", { method: "POST" });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || r.statusText);
+      set({ leads: state.leads.map((l) => (l.id === id ? d : l)), leadBusyId: null });
+    } catch (e) { set({ leadBusyId: null }); throw e; }
+  }, [set, state.leads]);
+
+  const deleteLead = useCallback(async (id) => {
+    await fetch("/api/leads/" + id, { method: "DELETE" });
+    set({ leads: state.leads.filter((l) => l.id !== id) });
+  }, [set, state.leads]);
+
+  const promoteLead = useCallback(async (id) => {
+    set({ leadBusyId: id });
+    try {
+      const r = await fetch("/api/leads/" + id + "/promote", { method: "POST" });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || r.statusText);
+      set({ leads: state.leads.map((l) => (l.id === id ? d.lead : l)), leadBusyId: null });
+      navigate(pathFor("result") + "/" + d.caseId);
+      return d;
+    } catch (e) { set({ leadBusyId: null }); throw e; }
+  }, [set, state.leads, navigate]);
+
   const api = { state, set, go, loadCases, loadContext, openCase, ensureCase, setFilter, onFileChosen, analyze,
     toggleAgency, send, resetHandoff, openAddContext, closeAddContext, saveContext, toggleContext, setDraftFile, deleteContext, attachContextFile,
     checkAuth, login, logout, deleteCase, setVerdict,
-    loadUsers, createUserAdmin, updateUserAdmin, deleteUserAdmin, resetPasswordAdmin };
+    loadUsers, createUserAdmin, updateUserAdmin, deleteUserAdmin, resetPasswordAdmin,
+    loadLeads, createLead, discardLead, deleteLead, promoteLead };
 
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>;
 }

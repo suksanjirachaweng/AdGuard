@@ -146,79 +146,105 @@ const SYSTEM = `คุณคือเครื่องมือ AI ของส
 ให้คะแนน riskScore ตามความรุนแรงและจำนวนความผิด หากไม่พบความผิดให้ riskLevel='clear', violations=[]
 ตอบเป็นภาษาไทยเป็นหลัก (คำเฉพาะอังกฤษได้) และต้องตอบตาม JSON schema ที่กำหนดเท่านั้น`;
 
+// Core Claude call, shared by the manual "ตรวจสอบใหม่" flow and the
+// discovery-lead promotion flow — both just need { mode, url, text,
+// imageBase64, imageMediaType, context } in and an analysis result out.
+async function runAnalysis({ mode, url = "", text = "", imageBase64 = "", imageMediaType = "image/jpeg", context = [] }) {
+  // context items come as { title, body } — include a body excerpt so the
+  // model actually reads attached documents, not just their titles.
+  const CTX_BODY_EXCERPT = 1500;
+  const ctxNote = Array.isArray(context) && context.length
+    ? "\n\nบริบท/ฐานความรู้เพิ่มเติมที่ต้องใช้ประกอบการพิจารณา:\n" + context.map((c) => {
+        const title = typeof c === "string" ? c : (c.title || "");
+        const body = typeof c === "string" ? "" : (c.body || "");
+        const excerpt = body && body !== "—" ? body.slice(0, CTX_BODY_EXCERPT) + (body.length > CTX_BODY_EXCERPT ? "…" : "") : "";
+        return `- ${title}${excerpt ? `: ${excerpt}` : ""}`;
+      }).join("\n")
+    : "";
+
+  const userContent = [];
+  if (mode === "image" && imageBase64) {
+    userContent.push({
+      type: "image_url",
+      image_url: { url: `data:${imageMediaType};base64,${imageBase64}` },
+    });
+    userContent.push({ type: "text", text: `วิเคราะห์โฆษณาในรูปภาพนี้ว่ามีการโฆษณาเกินจริงหรือผิดกฎหมายหรือไม่${ctxNote}` });
+  } else {
+    const subject = url ? `URL/แหล่งที่มา: ${url}\n` : "";
+    const body = text || url || "(ไม่มีเนื้อหา)";
+    userContent.push({
+      type: "text",
+      text: `วิเคราะห์เนื้อหาโฆษณาต่อไปนี้:\n${subject}เนื้อหา: ${body}${ctxNote}`,
+    });
+  }
+
+  if (!process.env.OPENROUTER_API_KEY) {
+    const err = new Error("OPENROUTER_API_KEY ยังไม่ได้ตั้งค่า");
+    err.status = 503;
+    throw err;
+  }
+
+  // Hash the raw input for consistency grouping (same ad, different models)
+  const inputHash = createHash("sha256")
+    .update(mode + "|" + (url || "") + "|" + (text || "") + "|" + (imageBase64 ? imageBase64.slice(0, 64) : ""))
+    .digest("hex")
+    .slice(0, 16);
+
+  const t0 = Date.now();
+  const completion = await client.chat.completions.create({
+    model: OPENROUTER_MODEL,
+    max_tokens: 4096,
+    response_format: {
+      type: "json_schema",
+      json_schema: { name: "analysis", strict: true, schema: ANALYSIS_SCHEMA },
+    },
+    messages: [
+      { role: "system", content: SYSTEM },
+      { role: "user", content: userContent },
+    ],
+  });
+
+  const choice = completion.choices?.[0];
+  if (!choice) { const err = new Error("ไม่ได้รับผลลัพธ์จาก AI"); err.status = 502; throw err; }
+  if (choice.finish_reason === "content_filter") {
+    const err = new Error("AI ปฏิเสธการวิเคราะห์เนื้อหานี้");
+    err.status = 422;
+    throw err;
+  }
+
+  const latencyMs = Date.now() - t0;
+  const usage = completion.usage || {};
+  const raw = choice.message.content.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/,"").trim();
+  const result = JSON.parse(raw);
+
+  // The model occasionally ignores response_format/strict and returns a
+  // differently-shaped JSON object (seen with some OpenRouter routes) — the
+  // Result page assumes these fields exist and .map()s over them, so a
+  // mismatched shape used to crash the whole app to a blank screen. Reject
+  // it here instead of saving unusable data as a case.
+  const REQUIRED_ARRAYS = ["riskDims", "findings", "violations"];
+  const missingArrays = REQUIRED_ARRAYS.filter((k) => !Array.isArray(result[k]));
+  const REQUIRED_STRINGS = ["riskLevel", "riskTh", "verdictTitle", "verdictSummary"];
+  const missingStrings = REQUIRED_STRINGS.filter((k) => typeof result[k] !== "string");
+  if (missingArrays.length || missingStrings.length) {
+    const err = new Error("AI ตอบกลับไม่ตรงรูปแบบที่กำหนด กรุณาลองวิเคราะห์ใหม่อีกครั้ง");
+    err.status = 502;
+    throw err;
+  }
+
+  const usedModel = completion.model || OPENROUTER_MODEL;
+  return { result, usedModel, latencyMs, inputHash, promptTokens: usage.prompt_tokens || null, completionTokens: usage.completion_tokens || null };
+}
+
 app.post("/api/analyze", requireAuth, async (req, res) => {
   try {
     const { mode, url = "", text = "", imageBase64 = "", imageMediaType = "image/jpeg", context = [] } = req.body || {};
-
-    // context items come as { title, body } — include a body excerpt so the
-    // model actually reads attached documents, not just their titles.
-    const CTX_BODY_EXCERPT = 1500;
-    const ctxNote = Array.isArray(context) && context.length
-      ? "\n\nบริบท/ฐานความรู้เพิ่มเติมที่ต้องใช้ประกอบการพิจารณา:\n" + context.map((c) => {
-          const title = typeof c === "string" ? c : (c.title || "");
-          const body = typeof c === "string" ? "" : (c.body || "");
-          const excerpt = body && body !== "—" ? body.slice(0, CTX_BODY_EXCERPT) + (body.length > CTX_BODY_EXCERPT ? "…" : "") : "";
-          return `- ${title}${excerpt ? `: ${excerpt}` : ""}`;
-        }).join("\n")
-      : "";
-
-    const userContent = [];
-    if (mode === "image" && imageBase64) {
-      userContent.push({
-        type: "image_url",
-        image_url: { url: `data:${imageMediaType};base64,${imageBase64}` },
-      });
-      userContent.push({ type: "text", text: `วิเคราะห์โฆษณาในรูปภาพนี้ว่ามีการโฆษณาเกินจริงหรือผิดกฎหมายหรือไม่${ctxNote}` });
-    } else {
-      const subject = url ? `URL/แหล่งที่มา: ${url}\n` : "";
-      const body = text || url || "(ไม่มีเนื้อหา)";
-      userContent.push({
-        type: "text",
-        text: `วิเคราะห์เนื้อหาโฆษณาต่อไปนี้:\n${subject}เนื้อหา: ${body}${ctxNote}`,
-      });
-    }
-
-    if (!process.env.OPENROUTER_API_KEY) {
-      return res.status(503).json({ error: "OPENROUTER_API_KEY ยังไม่ได้ตั้งค่า" });
-    }
-
-    // Hash the raw input for consistency grouping (same ad, different models)
-    const inputHash = createHash("sha256")
-      .update(mode + "|" + (url || "") + "|" + (text || "") + "|" + (imageBase64 ? imageBase64.slice(0, 64) : ""))
-      .digest("hex")
-      .slice(0, 16);
-
-    const t0 = Date.now();
-    const completion = await client.chat.completions.create({
-      model: OPENROUTER_MODEL,
-      max_tokens: 4096,
-      response_format: {
-        type: "json_schema",
-        json_schema: { name: "analysis", strict: true, schema: ANALYSIS_SCHEMA },
-      },
-      messages: [
-        { role: "system", content: SYSTEM },
-        { role: "user", content: userContent },
-      ],
-    });
-
-    const choice = completion.choices?.[0];
-    if (!choice) return res.status(502).json({ error: "ไม่ได้รับผลลัพธ์จาก AI" });
-    if (choice.finish_reason === "content_filter") {
-      return res.status(422).json({ error: "AI ปฏิเสธการวิเคราะห์เนื้อหานี้" });
-    }
-
-    const latencyMs = Date.now() - t0;
-    const usage = completion.usage || {};
-    const raw = choice.message.content.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/,"").trim();
-    const result = JSON.parse(raw);
-    const usedModel = completion.model || OPENROUTER_MODEL;
+    const { result, usedModel, latencyMs, inputHash, promptTokens, completionTokens } =
+      await runAnalysis({ mode, url, text, imageBase64, imageMediaType, context });
     const caseId = await store.insertCaseFromAnalysis(result, {
-      type: mode, model: usedModel, latencyMs, inputHash,
-      promptTokens: usage.prompt_tokens || null,
-      completionTokens: usage.completion_tokens || null,
+      type: mode, model: usedModel, latencyMs, inputHash, promptTokens, completionTokens,
     });
-    res.json({ ...result, caseId, model: usedModel, latencyMs, inputHash, promptTokens: usage.prompt_tokens || null, completionTokens: usage.completion_tokens || null });
+    res.json({ ...result, caseId, model: usedModel, latencyMs, inputHash, promptTokens, completionTokens });
   } catch (err) {
     console.error("analyze error:", err?.message || err);
     const status = err?.status || 500;
@@ -259,6 +285,49 @@ app.post("/api/cases/:id/refer", requireAuth, wrap(async (req, res) => {
   if (!agencies.length) return res.status(400).json({ error: "ต้องเลือกอย่างน้อย 1 หน่วยงาน" });
   if (!(await store.referCase(req.params.id, agencies, note))) return res.status(404).json({ error: "ไม่พบเคส" });
   res.json({ ok: true });
+}));
+
+// ---- Discovery leads (Phase 2: web/social monitoring queue) -------------
+// MVP: leads are added manually for now (no Apify/SERP wiring yet). Each
+// lead is reviewed and either promoted into a real case (runs the same
+// AI analysis as the manual flow) or discarded as a false positive.
+app.get("/api/leads", requireAuth, wrap(async (req, res) => {
+  res.json({ leads: await store.listLeads(req.query.status) });
+}));
+app.post("/api/leads", requireAuth, wrap(async (req, res) => {
+  const { url = "", platform = "website", rawText = "", matchedKeywords = [] } = req.body || {};
+  if (!url.trim()) return res.status(400).json({ error: "ต้องระบุ URL" });
+  const lead = await store.insertLead({ url: url.trim(), platform, rawText: rawText.trim(), matchedKeywords });
+  if (!lead) return res.status(409).json({ error: "มี URL นี้ในคิวอยู่แล้ว" });
+  res.json(lead);
+}));
+app.delete("/api/leads/:id", requireAuth, wrap(async (req, res) => {
+  const ok = await store.deleteLead(Number(req.params.id));
+  if (!ok) return res.status(404).json({ error: "ไม่พบรายการ" });
+  res.json({ ok: true });
+}));
+app.post("/api/leads/:id/discard", requireAuth, wrap(async (req, res) => {
+  const lead = await store.discardLead(Number(req.params.id));
+  if (!lead) return res.status(404).json({ error: "ไม่พบรายการ" });
+  res.json(lead);
+}));
+app.post("/api/leads/:id/promote", requireAuth, wrap(async (req, res) => {
+  const lead = await store.getLead(Number(req.params.id));
+  if (!lead) return res.status(404).json({ error: "ไม่พบรายการ" });
+
+  const context = (await store.listContext()).filter((c) => c.active).map((c) => ({ title: c.title, body: c.body }));
+  let analysis;
+  try {
+    analysis = await runAnalysis({ mode: "link", url: lead.url, text: lead.rawText || "", context });
+  } catch (err) {
+    return res.status(err.status || 500).json({ error: err.message || "วิเคราะห์ไม่สำเร็จ" });
+  }
+  const { result, usedModel, latencyMs, inputHash, promptTokens, completionTokens } = analysis;
+  const caseId = await store.insertCaseFromAnalysis(result, {
+    type: "link", model: usedModel, latencyMs, inputHash, promptTokens, completionTokens,
+  });
+  const updatedLead = await store.markLeadPromoted(lead.id, caseId);
+  res.json({ lead: updatedLead, caseId });
 }));
 
 // ---- AI context / knowledge base (auth required) ------------------------

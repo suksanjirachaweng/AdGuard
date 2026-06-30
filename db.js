@@ -89,6 +89,20 @@ export async function init() {
     );
   `);
 
+  // ---- Phase 2: web/social discovery (leads queue before promotion to cases)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS leads (
+      id                serial PRIMARY KEY,
+      url               text UNIQUE,
+      platform          text,
+      raw_text          text,
+      matched_keywords  text[],
+      status            text DEFAULT 'pending',
+      promoted_case_id  text REFERENCES cases(id),
+      discovered_at     timestamptz DEFAULT now()
+    );
+  `);
+
   // Seed a first admin so you can log in immediately. Credentials come from env
   // (ADMIN_EMAIL / ADMIN_PASSWORD); the defaults are dev-only — change them.
   const { rows: [uc] } = await pool.query("SELECT COUNT(*)::int AS n FROM users");
@@ -302,6 +316,52 @@ export async function channelStats() {
 
 export async function deleteCase(id) {
   const { rowCount } = await pool.query("DELETE FROM cases WHERE id=$1", [id]);
+  return rowCount > 0;
+}
+
+// ----- leads (discovery queue, before promotion to a case) ---------------
+const mapLead = (r) => ({
+  id: r.id, url: r.url, platform: r.platform, rawText: r.raw_text,
+  matchedKeywords: r.matched_keywords || [], status: r.status,
+  promotedCaseId: r.promoted_case_id, discoveredAt: r.discovered_at,
+});
+
+export async function listLeads(status) {
+  const { rows } = (status && status !== "all")
+    ? await pool.query("SELECT * FROM leads WHERE status=$1 ORDER BY discovered_at DESC", [status])
+    : await pool.query("SELECT * FROM leads ORDER BY discovered_at DESC");
+  return rows.map(mapLead);
+}
+
+export async function insertLead({ url, platform, rawText, matchedKeywords = [] }) {
+  const { rows } = await pool.query(
+    `INSERT INTO leads (url,platform,raw_text,matched_keywords,status)
+     VALUES ($1,$2,$3,$4,'pending') ON CONFLICT (url) DO NOTHING RETURNING *`,
+    [url, platform, rawText, matchedKeywords]
+  );
+  return rows[0] ? mapLead(rows[0]) : null;
+}
+
+export async function getLead(id) {
+  const { rows } = await pool.query("SELECT * FROM leads WHERE id=$1", [id]);
+  return rows[0] ? mapLead(rows[0]) : null;
+}
+
+export async function markLeadPromoted(id, caseId) {
+  const { rows } = await pool.query(
+    "UPDATE leads SET status='promoted', promoted_case_id=$2 WHERE id=$1 RETURNING *",
+    [id, caseId]
+  );
+  return rows[0] ? mapLead(rows[0]) : null;
+}
+
+export async function discardLead(id) {
+  const { rows } = await pool.query("UPDATE leads SET status='discarded' WHERE id=$1 RETURNING *", [id]);
+  return rows[0] ? mapLead(rows[0]) : null;
+}
+
+export async function deleteLead(id) {
+  const { rowCount } = await pool.query("DELETE FROM leads WHERE id=$1", [id]);
   return rowCount > 0;
 }
 

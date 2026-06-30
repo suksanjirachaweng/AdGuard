@@ -9,6 +9,7 @@ import Upload from "./components/Upload.jsx";
 import Result from "./components/Result.jsx";
 import Cases from "./components/Cases.jsx";
 import ContextScreen from "./components/ContextScreen.jsx";
+import Monitoring from "./components/Monitoring.jsx";
 import Handoff from "./components/Handoff.jsx";
 import Analytics from "./components/Analytics.jsx";
 import UserManagement from "./components/UserManagement.jsx";
@@ -51,6 +52,7 @@ export default function App() {
           <Route path="/result/:id" element={<Result />} />
           <Route path="/cases" element={<Cases />} />
           <Route path="/context" element={<ContextScreen />} />
+          <Route path="/monitoring" element={<Monitoring />} />
           <Route path="/handoff" element={<Handoff />} />
           <Route path="/analytics" element={<Analytics />} />
           <Route path="/users" element={<UserManagement />} />
