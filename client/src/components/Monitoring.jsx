@@ -75,13 +75,57 @@ function AddLeadForm({ onAdd }) {
   );
 }
 
+function DiscoverySection({ onRun, running }) {
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState("");
+
+  const run = async () => {
+    setError("");
+    setResult(null);
+    try { setResult(await onRun()); }
+    catch (e) { setError(e.message); }
+  };
+
+  return (
+    <div style={st("background:#fff;border:1.5px solid #e2e9e5;border-radius:13px;padding:18px;margin-bottom:18px;")}>
+      <div style={st("display:flex;align-items:center;gap:14px;flex-wrap:wrap;")}>
+        <div style={st("flex:1;min-width:240px;")}>
+          <div style={st("font-size:13.5px;font-weight:700;color:#16241d;margin-bottom:3px;")}>🔍 ค้นหาอัตโนมัติด้วย SERP API</div>
+          <div style={st("font-size:12px;color:#7d8e86;line-height:1.6;")}>ค้นหาเว็บไซต์ที่เข้าข่ายอวดอ้างสรรพคุณเกินจริง (อาหาร/ยา) จากชุดคำค้นที่ตั้งไว้ แล้วเพิ่มเข้าคิวอัตโนมัติ</div>
+        </div>
+        <button onClick={run} disabled={running}
+          style={st("background:#0f3026;color:#fff;border:none;border-radius:9px;padding:11px 20px;font-family:inherit;font-size:13px;font-weight:600;cursor:" + (running ? "not-allowed" : "pointer") + ";white-space:nowrap;")}>
+          {running ? "กำลังค้นหา…" : "🔍 ค้นหาตอนนี้"}
+        </button>
+      </div>
+      {error && (
+        <div style={st("margin-top:12px;background:#fdecea;color:#c0392b;padding:10px 14px;border-radius:8px;font-size:12.5px;")}>
+          ⚠ {error}
+          {error.includes("SERPER_API_KEY") && <div style={st("margin-top:4px;")}>ตั้งค่า SERPER_API_KEY ใน .env / Render dashboard ก่อน (สมัครได้ที่ serper.dev)</div>}
+        </div>
+      )}
+      {result && (
+        <div style={st("margin-top:12px;background:#e9f4ee;color:#157347;padding:10px 14px;border-radius:8px;font-size:12.5px;")}>
+          ✓ ค้นหา {result.queriesRun} คำ พบ {result.found} ลิงก์ — เพิ่มเข้าคิวใหม่ {result.queued} รายการ (ซ้ำ/มีอยู่แล้ว {result.skipped})
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Monitoring() {
-  const { state, loadLeads, createLead, promoteLead, discardLead, deleteLead } = useApp();
-  const { leads, leadsLoading, leadsError, leadBusyId } = state;
+  const { state, loadLeads, createLead, promoteLead, discardLead, deleteLead, runDiscovery } = useApp();
+  const { leads, leadsLoading, leadsError, leadBusyId, discoveryRunning } = state;
   const [tab, setTab] = useState("pending");
   const [actionError, setActionError] = useState("");
 
   useEffect(() => { loadLeads(tab); }, [tab, loadLeads]);
+
+  const handleDiscoveryRun = async () => {
+    const result = await runDiscovery();
+    if (tab === "pending") loadLeads(tab);
+    return result;
+  };
 
   const handlePromote = async (id) => {
     setActionError("");
@@ -101,11 +145,12 @@ export default function Monitoring() {
         <div style={st("flex:1;")}>
           <div style={st("font-size:16px;font-weight:700;margin-bottom:4px;")}>คิวเฝ้าระวังโฆษณาบนอินเทอร์เน็ต</div>
           <div style={st("font-size:12.5px;color:#bcd6c8;line-height:1.6;")}>
-            MVP: เพิ่มลิงก์ที่พบด้วยตนเองก่อน (เว็บไซต์ / Facebook / TikTok / Shopee) ระยะถัดไปจะต่อ SERP API + Apify ให้ค้นหาและดึงเนื้อหาอัตโนมัติ — "ส่งเป็นเคส" จะรัน AI วิเคราะห์เหมือนหน้าตรวจสอบใหม่ทุกประการ
+            ค้นหาเว็บไซต์อัตโนมัติด้วย SERP API หรือเพิ่มลิงก์ที่พบเองก็ได้ (เว็บไซต์ / Facebook / TikTok / Shopee) — ระยะถัดไปจะต่อ Apify ให้ดึงเนื้อหาเชิงลึกจากโซเชียลได้ — "ส่งเป็นเคส" จะรัน AI วิเคราะห์เหมือนหน้าตรวจสอบใหม่ทุกประการ
           </div>
         </div>
       </div>
 
+      <DiscoverySection onRun={handleDiscoveryRun} running={discoveryRunning} />
       <AddLeadForm onAdd={createLead} />
 
       {actionError && (

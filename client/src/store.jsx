@@ -52,6 +52,8 @@ const initialState = {
   leadsLoading: false,
   leadsError: "",
   leadBusyId: null,
+  discoveryRunning: false,
+  discoveryError: "",
 };
 
 function reducer(state, action) {
@@ -411,11 +413,22 @@ export function AppProvider({ children }) {
     } catch (e) { set({ leadBusyId: null }); throw e; }
   }, [set, state.leads, navigate]);
 
+  const runDiscovery = useCallback(async () => {
+    set({ discoveryRunning: true, discoveryError: "" });
+    try {
+      const r = await fetch("/api/discovery/run", { method: "POST" });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || r.statusText);
+      set({ discoveryRunning: false });
+      return d;
+    } catch (e) { set({ discoveryRunning: false, discoveryError: e.message }); throw e; }
+  }, [set]);
+
   const api = { state, set, go, loadCases, loadContext, openCase, ensureCase, setFilter, onFileChosen, analyze,
     toggleAgency, send, resetHandoff, openAddContext, closeAddContext, saveContext, toggleContext, setDraftFile, deleteContext, attachContextFile,
     checkAuth, login, logout, deleteCase, setVerdict,
     loadUsers, createUserAdmin, updateUserAdmin, deleteUserAdmin, resetPasswordAdmin,
-    loadLeads, createLead, discardLead, deleteLead, promoteLead };
+    loadLeads, createLead, discardLead, deleteLead, promoteLead, runDiscovery };
 
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>;
 }

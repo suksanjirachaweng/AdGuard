@@ -330,6 +330,60 @@ app.post("/api/leads/:id/promote", requireAuth, wrap(async (req, res) => {
   res.json({ lead: updatedLead, caseId });
 }));
 
+// ---- Discovery: SERP API (Serper.dev) — finds candidate URLs on the open
+// web, queues them as leads. This is "Discovery" only (search-index results:
+// title + snippet); deep social scraping (Apify) is a later step. Query
+// templates pair an excessive-claim phrase with a product category so
+// results skew toward food/drug ad pages rather than news/forum mentions.
+const DISCOVERY_QUERIES = [
+  { q: '"อาหารเสริม" "ลดน้ำหนัก" "เห็นผล 100%"', keyword: "เห็นผล 100%" },
+  { q: '"อาหารเสริม" "รักษาหายขาด"', keyword: "รักษาหายขาด" },
+  { q: '"ลดน้ำหนัก" "การันตีผล" "ไม่ต้องคุมอาหาร"', keyword: "การันตีผล" },
+  { q: '"สมุนไพร" "รักษามะเร็ง" OR "รักษาเบาหวาน"', keyword: "รักษามะเร็ง/เบาหวาน" },
+  { q: '"ยา" "หายขาด" "ไม่ต้องผ่าตัด"', keyword: "ไม่ต้องผ่าตัด" },
+  { q: '"อาหารเสริม" "อย. รับรอง" "ปลอดภัยไร้ผลข้างเคียง"', keyword: "ปลอดภัยไร้ผลข้างเคียง" },
+];
+
+app.get("/api/discovery/queries", requireAuth, wrap(async (_req, res) => {
+  res.json({ queries: DISCOVERY_QUERIES, configured: !!process.env.SERPER_API_KEY });
+}));
+
+app.post("/api/discovery/run", requireAuth, wrap(async (req, res) => {
+  if (!process.env.SERPER_API_KEY) return res.status(503).json({ error: "SERPER_API_KEY ยังไม่ได้ตั้งค่า" });
+
+  const queries = Array.isArray(req.body?.queries) && req.body.queries.length
+    ? req.body.queries.map((q) => (typeof q === "string" ? { q, keyword: q } : q))
+    : DISCOVERY_QUERIES;
+
+  let found = 0, queued = 0, skipped = 0;
+  const errors = [];
+  for (const { q, keyword } of queries) {
+    try {
+      const r = await fetch("https://google.serper.dev/search", {
+        method: "POST",
+        headers: { "X-API-KEY": process.env.SERPER_API_KEY, "Content-Type": "application/json" },
+        body: JSON.stringify({ q, gl: "th", hl: "th", num: 10 }),
+      });
+      if (!r.ok) { errors.push(`"${q}": HTTP ${r.status}`); continue; }
+      const data = await r.json();
+      for (const item of data.organic || []) {
+        if (!item.link) continue;
+        found++;
+        const lead = await store.insertLead({
+          url: item.link,
+          platform: "website",
+          rawText: [item.title, item.snippet].filter(Boolean).join(" — "),
+          matchedKeywords: [keyword],
+        });
+        if (lead) queued++; else skipped++;
+      }
+    } catch (err) {
+      errors.push(`"${q}": ${err.message}`);
+    }
+  }
+  res.json({ found, queued, skipped, errors, queriesRun: queries.length });
+}));
+
 // ---- AI context / knowledge base (auth required) ------------------------
 app.get("/api/context", requireAuth, wrap(async (_req, res) => res.json({ items: await store.listContext() })));
 app.post("/api/context", requireAuth, wrap(async (req, res) => {
