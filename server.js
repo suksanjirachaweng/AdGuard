@@ -330,7 +330,7 @@ app.post("/api/leads/:id/promote", requireAuth, wrap(async (req, res) => {
   res.json({ lead: updatedLead, caseId });
 }));
 
-// ---- Discovery: SERP API (Serper.dev) — finds candidate URLs on the open
+// ---- Discovery: SERP API (SerpApi.com) — finds candidate URLs on the open
 // web, queues them as leads. This is "Discovery" only (search-index results:
 // title + snippet); deep social scraping (Apify) is a later step. Query
 // templates pair an excessive-claim phrase with a product category so
@@ -345,11 +345,11 @@ const DISCOVERY_QUERIES = [
 ];
 
 app.get("/api/discovery/queries", requireAuth, wrap(async (_req, res) => {
-  res.json({ queries: DISCOVERY_QUERIES, configured: !!process.env.SERPER_API_KEY });
+  res.json({ queries: DISCOVERY_QUERIES, configured: !!process.env.SERPAPI_API_KEY });
 }));
 
 app.post("/api/discovery/run", requireAuth, wrap(async (req, res) => {
-  if (!process.env.SERPER_API_KEY) return res.status(503).json({ error: "SERPER_API_KEY ยังไม่ได้ตั้งค่า" });
+  if (!process.env.SERPAPI_API_KEY) return res.status(503).json({ error: "SERPAPI_API_KEY ยังไม่ได้ตั้งค่า" });
 
   const queries = Array.isArray(req.body?.queries) && req.body.queries.length
     ? req.body.queries.map((q) => (typeof q === "string" ? { q, keyword: q } : q))
@@ -359,14 +359,13 @@ app.post("/api/discovery/run", requireAuth, wrap(async (req, res) => {
   const errors = [];
   for (const { q, keyword } of queries) {
     try {
-      const r = await fetch("https://google.serper.dev/search", {
-        method: "POST",
-        headers: { "X-API-KEY": process.env.SERPER_API_KEY, "Content-Type": "application/json" },
-        body: JSON.stringify({ q, gl: "th", hl: "th", num: 10 }),
+      const url = "https://serpapi.com/search.json?" + new URLSearchParams({
+        engine: "google", q, gl: "th", hl: "th", num: "10", api_key: process.env.SERPAPI_API_KEY,
       });
+      const r = await fetch(url);
       if (!r.ok) { errors.push(`"${q}": HTTP ${r.status}`); continue; }
       const data = await r.json();
-      for (const item of data.organic || []) {
+      for (const item of data.organic_results || []) {
         if (!item.link) continue;
         found++;
         const lead = await store.insertLead({

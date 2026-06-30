@@ -101,7 +101,7 @@ function DiscoverySection({ onRun, running }) {
       {error && (
         <div style={st("margin-top:12px;background:#fdecea;color:#c0392b;padding:10px 14px;border-radius:8px;font-size:12.5px;")}>
           ⚠ {error}
-          {error.includes("SERPER_API_KEY") && <div style={st("margin-top:4px;")}>ตั้งค่า SERPER_API_KEY ใน .env / Render dashboard ก่อน (สมัครได้ที่ serper.dev)</div>}
+          {error.includes("SERPAPI_API_KEY") && <div style={st("margin-top:4px;")}>ตั้งค่า SERPAPI_API_KEY ใน .env / Render dashboard ก่อน (สมัครได้ที่ serpapi.com)</div>}
         </div>
       )}
       {result && (
