@@ -179,7 +179,7 @@ export function AppProvider({ children }) {
       }
     }, 180);
 
-    const context = state.contextItems.filter((c) => c.active).map((c) => c.title);
+    const context = state.contextItems.filter((c) => c.active).map((c) => ({ title: c.title, body: c.body }));
     const payload = {
       mode: state.inputMode,
       url: state.inputMode === "link" ? "https://" + state.linkValue : "",

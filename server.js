@@ -150,8 +150,16 @@ app.post("/api/analyze", requireAuth, async (req, res) => {
   try {
     const { mode, url = "", text = "", imageBase64 = "", imageMediaType = "image/jpeg", context = [] } = req.body || {};
 
+    // context items come as { title, body } — include a body excerpt so the
+    // model actually reads attached documents, not just their titles.
+    const CTX_BODY_EXCERPT = 1500;
     const ctxNote = Array.isArray(context) && context.length
-      ? `\n\nบริบท/ฐานความรู้เพิ่มเติมที่ต้องใช้ประกอบการพิจารณา:\n- ${context.join("\n- ")}`
+      ? "\n\nบริบท/ฐานความรู้เพิ่มเติมที่ต้องใช้ประกอบการพิจารณา:\n" + context.map((c) => {
+          const title = typeof c === "string" ? c : (c.title || "");
+          const body = typeof c === "string" ? "" : (c.body || "");
+          const excerpt = body && body !== "—" ? body.slice(0, CTX_BODY_EXCERPT) + (body.length > CTX_BODY_EXCERPT ? "…" : "") : "";
+          return `- ${title}${excerpt ? `: ${excerpt}` : ""}`;
+        }).join("\n")
       : "";
 
     const userContent = [];
