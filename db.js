@@ -329,6 +329,14 @@ export async function deleteContext(id) {
   return rowCount > 0;
 }
 
+export async function attachContextFile(id, { body, meta }) {
+  const { rows } = await pool.query(
+    "UPDATE context_items SET body=$1, meta=$2 WHERE id=$3 RETURNING *",
+    [body, meta, id]
+  );
+  return rows[0] ? mapContext(rows[0]) : null;
+}
+
 // ----- users -------------------------------------------------------------
 export async function listUsers() {
   const { rows } = await pool.query(

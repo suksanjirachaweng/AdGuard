@@ -261,6 +261,26 @@ app.post("/api/context", requireAuth, wrap(async (req, res) => {
   res.json(await store.insertContext({ type, title: title.trim(), body: body.trim() || "—", meta }));
 }));
 
+// Extracts full text from an uploaded PDF/TXT/MD/CSV file, used by both the
+// "new context item" and "attach file to existing item" routes below.
+async function extractFileText(file) {
+  const name = file.originalname || "เอกสาร";
+  const ext = (name.split(".").pop() || "").toLowerCase();
+
+  if (ext === "pdf" || file.mimetype === "application/pdf") {
+    const parser = new PDFParse({ data: file.buffer });
+    const data = await parser.getText();
+    await parser.destroy();
+    const text = (data.text || "").trim();
+    return { text, meta: `PDF · ${data.total || "?"} หน้า · ${name}`, name };
+  }
+  if (["txt", "md", "csv"].includes(ext) || file.mimetype?.startsWith("text/")) {
+    const text = file.buffer.toString("utf8").trim();
+    return { text, meta: `${ext.toUpperCase() || "TXT"} · ${(file.size / 1024).toFixed(0)} KB · ${name}`, name };
+  }
+  return null;
+}
+
 // File-upload variant: extracts full text from PDF/TXT/MD/CSV and stores it
 // as the context item's body, so the complete document lives in the DB
 // (not just a short summary).
@@ -268,31 +288,29 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 
 app.post("/api/context/upload", requireAuth, upload.single("file"), wrap(async (req, res) => {
   if (!req.file) return res.status(400).json({ error: "ไม่พบไฟล์ที่อัปโหลด" });
   const { type = "doc", title = "" } = req.body || {};
-  const name = req.file.originalname || "เอกสาร";
-  const ext = (name.split(".").pop() || "").toLowerCase();
-
-  let text = "";
-  let meta = "";
-  if (ext === "pdf" || req.file.mimetype === "application/pdf") {
-    const parser = new PDFParse({ data: req.file.buffer });
-    const data = await parser.getText();
-    await parser.destroy();
-    text = (data.text || "").trim();
-    meta = `PDF · ${data.total || "?"} หน้า`;
-  } else if (["txt", "md", "csv"].includes(ext) || req.file.mimetype?.startsWith("text/")) {
-    text = req.file.buffer.toString("utf8").trim();
-    meta = `${ext.toUpperCase() || "TXT"} · ${(req.file.size / 1024).toFixed(0)} KB`;
-  } else {
-    return res.status(400).json({ error: "รองรับเฉพาะไฟล์ PDF, TXT, MD, CSV" });
-  }
-  if (!text) return res.status(400).json({ error: "ไม่สามารถสกัดข้อความจากไฟล์นี้ได้" });
+  const extracted = await extractFileText(req.file);
+  if (!extracted) return res.status(400).json({ error: "รองรับเฉพาะไฟล์ PDF, TXT, MD, CSV" });
+  if (!extracted.text) return res.status(400).json({ error: "ไม่สามารถสกัดข้อความจากไฟล์นี้ได้" });
 
   const item = await store.insertContext({
     type,
-    title: (title.trim() || name.replace(/\.[^.]+$/, "")).slice(0, 200),
-    body: text.slice(0, 100000),
-    meta: `${meta} · ${name}`,
+    title: (title.trim() || extracted.name.replace(/\.[^.]+$/, "")).slice(0, 200),
+    body: extracted.text.slice(0, 100000),
+    meta: extracted.meta,
   });
+  res.json(item);
+}));
+
+// Attach/replace a real document on an *existing* context item — for legacy
+// entries that only ever had a short seed description, not a full document.
+app.patch("/api/context/:id/upload", requireAuth, upload.single("file"), wrap(async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: "ไม่พบไฟล์ที่อัปโหลด" });
+  const extracted = await extractFileText(req.file);
+  if (!extracted) return res.status(400).json({ error: "รองรับเฉพาะไฟล์ PDF, TXT, MD, CSV" });
+  if (!extracted.text) return res.status(400).json({ error: "ไม่สามารถสกัดข้อความจากไฟล์นี้ได้" });
+
+  const item = await store.attachContextFile(Number(req.params.id), { body: extracted.text.slice(0, 100000), meta: extracted.meta });
+  if (!item) return res.status(404).json({ error: "ไม่พบบริบท" });
   res.json(item);
 }));
 app.patch("/api/context/:id/toggle", requireAuth, wrap(async (req, res) => {

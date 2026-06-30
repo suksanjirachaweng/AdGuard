@@ -261,6 +261,16 @@ export function AppProvider({ children }) {
     set({ contextItems: state.contextItems.filter((c) => c.id !== id) });
   }, [set, state.contextItems]);
 
+  const attachContextFile = useCallback(async (id, file) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    const r = await fetch("/api/context/" + id + "/upload", { method: "PATCH", body: fd });
+    const item = await r.json();
+    if (!r.ok) throw new Error(item.error || "อัปโหลดไม่สำเร็จ");
+    set({ contextItems: state.contextItems.map((c) => (c.id === id ? { ...c, ...item } : c)) });
+    return item;
+  }, [set, state.contextItems]);
+
   const toggleContext = useCallback(async (id) => {
     set({ contextItems: state.contextItems.map((c) => (c.id === id ? { ...c, active: !c.active } : c)) });
     try { await fetch("/api/context/" + id + "/toggle", { method: "PATCH" }); } catch { /* optimistic */ }
@@ -352,7 +362,7 @@ export function AppProvider({ children }) {
   }, []);
 
   const api = { state, set, go, loadCases, loadContext, openCase, ensureCase, setFilter, onFileChosen, analyze,
-    toggleAgency, send, resetHandoff, openAddContext, closeAddContext, saveContext, toggleContext, setDraftFile, deleteContext,
+    toggleAgency, send, resetHandoff, openAddContext, closeAddContext, saveContext, toggleContext, setDraftFile, deleteContext, attachContextFile,
     checkAuth, login, logout, deleteCase, setVerdict,
     loadUsers, createUserAdmin, updateUserAdmin, deleteUserAdmin, resetPasswordAdmin };
 

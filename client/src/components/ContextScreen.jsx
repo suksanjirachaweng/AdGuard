@@ -1,12 +1,31 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { st } from "../lib/st.js";
 import { ctxTypes } from "../lib/data.js";
 import { useApp } from "../store.jsx";
 
 const BODY_PREVIEW_LEN = 220;
+// Items whose body is still short are most likely stub seed descriptions
+// rather than a real uploaded document — offer to attach the real file.
+const SHORT_BODY_LEN = 400;
 
-function DocModal({ item, onClose, onDelete }) {
+function DocModal({ item, onClose, onDelete, onAttach }) {
   const tp = ctxTypes[item.type] || ctxTypes.law;
+  const fileInputRef = useRef(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const looksLikeStub = (item.body || "").length < SHORT_BODY_LEN;
+
+  const onPickFile = async (e) => {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    if (!f) return;
+    setBusy(true);
+    setError("");
+    try { await onAttach(item.id, f); }
+    catch (err) { setError(err.message); }
+    finally { setBusy(false); }
+  };
+
   return (
     <div onClick={onClose} style={st("position:fixed;inset:0;background:rgba(10,30,22,.55);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;z-index:70;padding:24px;")}>
       <div onClick={(e) => e.stopPropagation()} style={st("background:#fff;border-radius:16px;width:680px;max-width:100%;max-height:86vh;display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(0,0,0,.3);animation:fadeUp .3s ease;")}>
@@ -20,6 +39,19 @@ function DocModal({ item, onClose, onDelete }) {
           <button onClick={onClose} style={st("background:none;border:none;font-size:22px;color:#9aa8a1;cursor:pointer;line-height:1;")}>×</button>
         </div>
         <div style={st("padding:20px 24px;overflow-y:auto;white-space:pre-wrap;font-size:13px;line-height:1.75;color:#39473f;flex:1;")}>{item.body || "— ไม่มีเนื้อหา —"}</div>
+        {looksLikeStub && (
+          <div style={st("margin:0 24px 16px;background:#fdf4e3;border:1px solid #f3e0b5;border-radius:10px;padding:12px 14px;")}>
+            <div style={st("font-size:12px;color:#7d6420;line-height:1.6;margin-bottom:8px;")}>
+              รายการนี้มีแค่คำอธิบายสั้นๆ ยังไม่มีเอกสารฉบับเต็มแนบไว้ — แนบไฟล์จริง (PDF/TXT/MD/CSV) เพื่อแทนที่เนื้อหาด้านบนด้วยข้อความเต็มฉบับ
+            </div>
+            <input ref={fileInputRef} type="file" accept=".pdf,.txt,.md,.csv" onChange={onPickFile} style={st("display:none;")} />
+            <button onClick={() => fileInputRef.current?.click()} disabled={busy}
+              style={st("background:#fff;border:1px solid #e0c178;border-radius:8px;padding:7px 13px;font-family:inherit;font-size:12px;font-weight:600;color:#a9760e;cursor:" + (busy ? "not-allowed" : "pointer") + ";")}>
+              {busy ? "กำลังอัปโหลด…" : "📎 แนบเอกสารจริง"}
+            </button>
+            {error && <div style={st("color:#c0392b;font-size:11.5px;margin-top:8px;")}>⚠ {error}</div>}
+          </div>
+        )}
         {onDelete && (
           <div style={st("padding:14px 24px;border-top:1px solid #eef2f0;display:flex;justify-content:flex-end;")}>
             <button onClick={() => onDelete(item)} style={st("background:#fdecea;color:#c0392b;border:1px solid #f5c6bf;border-radius:8px;padding:8px 16px;font-family:inherit;font-size:12.5px;font-weight:600;cursor:pointer;")}>ลบเอกสารนี้</button>
@@ -31,13 +63,17 @@ function DocModal({ item, onClose, onDelete }) {
 }
 
 export default function ContextScreen() {
-  const { state, openAddContext, toggleContext, deleteContext } = useApp();
+  const { state, openAddContext, toggleContext, deleteContext, attachContextFile } = useApp();
   const items = state.contextItems;
   const [openDoc, setOpenDoc] = useState(null);
 
   const handleDelete = async (item) => {
     setOpenDoc(null);
     await deleteContext(item.id);
+  };
+  const handleAttach = async (id, file) => {
+    const updated = await attachContextFile(id, file);
+    setOpenDoc((cur) => (cur && cur.id === id ? { ...cur, ...updated } : cur));
   };
   const activeCount = items.filter((c) => c.active).length;
   const ctxStats = [
@@ -102,7 +138,7 @@ export default function ContextScreen() {
           );
         })}
       </div>
-      {openDoc && <DocModal item={openDoc} onClose={() => setOpenDoc(null)} onDelete={handleDelete} />}
+      {openDoc && <DocModal item={openDoc} onClose={() => setOpenDoc(null)} onDelete={handleDelete} onAttach={handleAttach} />}
     </div>
   );
 }
