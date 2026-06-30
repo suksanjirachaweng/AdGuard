@@ -19,6 +19,14 @@ const STATUS_TABS = [
 
 const inputStyle = "width:100%;padding:9px 12px;border:1.5px solid #d8e6de;border-radius:8px;font-family:inherit;font-size:13.5px;color:#16241d;box-sizing:border-box;outline:none;";
 
+// Hide internal service/config names (env var names, vendor names) from
+// error messages shown to officers — they shouldn't need to know which
+// third-party API powers a feature, just that it's unavailable.
+function friendlyError(msg = "") {
+  if (/API_KEY|API_TOKEN/i.test(msg)) return "ระบบยังไม่พร้อมใช้งานส่วนนี้ กรุณาติดต่อผู้ดูแลระบบ";
+  return msg;
+}
+
 function AddLeadForm({ onAdd }) {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ url: "", platform: "website", rawText: "" });
@@ -90,8 +98,8 @@ function DiscoverySection({ onRun, running }) {
     <div style={st("background:#fff;border:1.5px solid #e2e9e5;border-radius:13px;padding:18px;margin-bottom:18px;")}>
       <div style={st("display:flex;align-items:center;gap:14px;flex-wrap:wrap;")}>
         <div style={st("flex:1;min-width:240px;")}>
-          <div style={st("font-size:13.5px;font-weight:700;color:#16241d;margin-bottom:3px;")}>🔍 ค้นหาอัตโนมัติด้วย SERP API</div>
-          <div style={st("font-size:12px;color:#7d8e86;line-height:1.6;")}>ค้นหาเว็บไซต์ที่เข้าข่ายอวดอ้างสรรพคุณเกินจริง (อาหาร/ยา) จากชุดคำค้นที่ตั้งไว้ แล้วเพิ่มเข้าคิวอัตโนมัติ</div>
+          <div style={st("font-size:13.5px;font-weight:700;color:#16241d;margin-bottom:3px;")}>🔍 ค้นหาเว็บไซต์ต้องสงสัยอัตโนมัติ</div>
+          <div style={st("font-size:12px;color:#7d8e86;line-height:1.6;")}>ค้นหาเว็บไซต์ที่เข้าข่ายอวดอ้างสรรพคุณเกินจริง (อาหาร/ยา) แล้วเพิ่มเข้าคิวอัตโนมัติ</div>
         </div>
         <button onClick={run} disabled={running}
           style={st("background:#0f3026;color:#fff;border:none;border-radius:9px;padding:11px 20px;font-family:inherit;font-size:13px;font-weight:600;cursor:" + (running ? "not-allowed" : "pointer") + ";white-space:nowrap;")}>
@@ -100,8 +108,7 @@ function DiscoverySection({ onRun, running }) {
       </div>
       {error && (
         <div style={st("margin-top:12px;background:#fdecea;color:#c0392b;padding:10px 14px;border-radius:8px;font-size:12.5px;")}>
-          ⚠ {error}
-          {error.includes("SERPAPI_API_KEY") && <div style={st("margin-top:4px;")}>ตั้งค่า SERPAPI_API_KEY ใน .env / Render dashboard ก่อน (สมัครได้ที่ serpapi.com)</div>}
+          ⚠ {friendlyError(error)}
         </div>
       )}
       {result && (
@@ -154,7 +161,7 @@ export default function Monitoring() {
         <div style={st("flex:1;")}>
           <div style={st("font-size:16px;font-weight:700;margin-bottom:4px;")}>คิวเฝ้าระวังโฆษณาบนอินเทอร์เน็ต</div>
           <div style={st("font-size:12.5px;color:#bcd6c8;line-height:1.6;")}>
-            ค้นหาเว็บไซต์อัตโนมัติด้วย SERP API หรือเพิ่มลิงก์ที่พบเองก็ได้ — กด "📥 ดึงเนื้อหาเต็ม" (เว็บไซต์ทั่วไป) เพื่อให้ AI วิเคราะห์จากเนื้อหาจริงแทน snippet สั้นๆ — Apify สำหรับ Facebook/TikTok/Shopee ยังรอตรวจสอบ ToS ก่อนเปิดใช้ — "ส่งเป็นเคส" จะรัน AI วิเคราะห์เหมือนหน้าตรวจสอบใหม่ทุกประการ
+            ค้นหาเว็บไซต์ต้องสงสัยอัตโนมัติ หรือเพิ่มลิงก์ที่พบเองก็ได้ — กด "📥 ดึงเนื้อหาเต็ม" (เว็บไซต์ทั่วไป) เพื่อให้ AI วิเคราะห์จากเนื้อหาจริงแทนข้อความสรุปสั้นๆ — "ส่งเป็นเคส" จะรัน AI วิเคราะห์เหมือนหน้าตรวจสอบใหม่ทุกประการ
           </div>
         </div>
       </div>
@@ -163,7 +170,7 @@ export default function Monitoring() {
       <AddLeadForm onAdd={createLead} />
 
       {actionError && (
-        <div style={st("background:#fdecea;color:#c0392b;padding:12px 16px;border-radius:10px;font-size:13px;margin-bottom:16px;")}>⚠ {actionError}</div>
+        <div style={st("background:#fdecea;color:#c0392b;padding:12px 16px;border-radius:10px;font-size:13px;margin-bottom:16px;")}>⚠ {friendlyError(actionError)}</div>
       )}
 
       <div style={st("display:flex;gap:6px;margin-bottom:16px;")}>
@@ -207,7 +214,7 @@ export default function Monitoring() {
                   {l.status === "pending" && (
                     <div style={st("display:flex;gap:8px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end;max-width:200px;")}>
                       {l.platform === "website" && (
-                        <button onClick={() => handleCollect(l.id)} disabled={busy} title="ดึงเนื้อหาเต็มจากหน้าเว็บแทน snippet สั้นๆ"
+                        <button onClick={() => handleCollect(l.id)} disabled={busy} title="ดึงเนื้อหาเต็มจากหน้าเว็บแทนข้อความสรุปสั้นๆ"
                           style={st("background:#fff;border:1px solid #c9d8d0;border-radius:8px;padding:8px 12px;font-family:inherit;font-size:12px;font-weight:600;color:#157347;cursor:" + (busy ? "not-allowed" : "pointer") + ";white-space:nowrap;")}>
                           {busy && busyAction === "collect" ? "กำลังดึง…" : "📥 ดึงเนื้อหาเต็ม"}
                         </button>
