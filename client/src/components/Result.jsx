@@ -1,8 +1,23 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { st } from "../lib/st.js";
+import { ctxTypes } from "../lib/data.js";
 import { riskBadge, dimColor } from "../lib/badges.js";
 import { useApp } from "../store.jsx";
+
+// Extracts the law/act name portion before "มาตรา N" so it can be matched
+// against context-item titles/bodies (e.g. "พ.ร.บ.อาหาร พ.ศ. 2522 มาตรา 41 ..."
+// -> "พ.ร.บ.อาหาร พ.ศ. 2522").
+function lawPrefix(law = "") {
+  const i = law.indexOf("มาตรา");
+  return (i > 0 ? law.slice(0, i) : law).trim();
+}
+function findLawContext(items, law) {
+  const norm = (s) => (s || "").replace(/\s+/g, "");
+  const target = norm(lawPrefix(law));
+  if (!target) return null;
+  return items.find((c) => norm(c.title).includes(target) || norm(c.body).includes(target)) || null;
+}
 
 // Rough cost estimate (USD per 1M tokens) keyed by model substring
 const COST_MAP = [
@@ -38,12 +53,13 @@ const numMed = "width:34px;height:34px;border-radius:9px;background:#fdf4e3;colo
 
 
 export default function Result() {
-  const { state, go, ensureCase, setVerdict } = useApp();
+  const { state, go, ensureCase, setVerdict, set } = useApp();
   const { id } = useParams();
   const contentRef = useRef(null);
 
   // Hooks must be at top level — before any early returns
   const ai = state.viewAnalysis || null;
+  const [lawModal, setLawModal] = useState(null);
   const [vForm, setVForm] = useState({
     expertRiskLevel: ai?.expertRiskLevel || "",
     expertVerdict: ai?.expertVerdict || "",
@@ -291,7 +307,10 @@ export default function Result() {
               <div style={st("margin-top:13px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;")}>
                 <span style={st("font-size:11px;color:#7d8e86;font-weight:600;")}>มาตราที่เกี่ยวข้อง:</span>
                 {v.laws.map((law, i) => (
-                  <span key={i} style={st("display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:#2c5a8a;background:#e7f0fb;border:1px solid #cfe0f5;padding:4px 11px;border-radius:7px;")}>§ {law}</span>
+                  <button key={i} onClick={() => setLawModal(law)}
+                    style={st("display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:#2c5a8a;background:#e7f0fb;border:1px solid #cfe0f5;padding:4px 11px;border-radius:7px;font-family:inherit;cursor:pointer;")}>
+                    § {law}
+                  </button>
                 ))}
               </div>
             </div>
@@ -390,6 +409,43 @@ export default function Result() {
           </button>
         </div>
       </div>
+
+      {lawModal && (() => {
+        const match = findLawContext(state.contextItems, lawModal);
+        const tp = match ? (ctxTypes[match.type] || ctxTypes.law) : null;
+        return (
+          <div onClick={() => setLawModal(null)} style={st("position:fixed;inset:0;background:rgba(10,30,22,.55);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;z-index:70;padding:24px;")}>
+            <div onClick={(e) => e.stopPropagation()} style={st("background:#fff;border-radius:16px;width:600px;max-width:100%;max-height:86vh;display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(0,0,0,.3);animation:fadeUp .3s ease;")}>
+              <div style={st("padding:20px 24px;border-bottom:1px solid #eef2f0;display:flex;align-items:flex-start;gap:12px;")}>
+                <div style={st("width:38px;height:38px;border-radius:10px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:18px;background:" + (tp ? tp.bg : "#fdecea") + ";color:" + (tp ? tp.color : "#c0392b") + ";")}>{tp ? tp.icon : "?"}</div>
+                <div style={st("flex:1;min-width:0;")}>
+                  <div style={st("font-size:11px;color:#9aa8a1;font-weight:600;margin-bottom:3px;")}>มาตราที่เกี่ยวข้อง</div>
+                  <div style={st("font-size:14.5px;font-weight:700;color:#16241d;line-height:1.4;")}>{lawModal}</div>
+                </div>
+                <button onClick={() => setLawModal(null)} style={st("background:none;border:none;font-size:22px;color:#9aa8a1;cursor:pointer;line-height:1;")}>×</button>
+              </div>
+              <div style={st("padding:20px 24px;overflow-y:auto;")}>
+                {match ? (
+                  <>
+                    <div style={st("font-size:13.5px;font-weight:600;color:#16241d;margin-bottom:8px;")}>{match.title}</div>
+                    <div style={st("white-space:pre-wrap;font-size:13px;line-height:1.75;color:#39473f;")}>{match.body}</div>
+                    <div style={st("font-size:11px;color:#9aa8a1;font-family:'IBM Plex Mono',monospace;margin-top:14px;")}>{match.meta}</div>
+                  </>
+                ) : (
+                  <>
+                    <div style={st("font-size:13px;color:#7d8e86;line-height:1.7;margin-bottom:16px;")}>ยังไม่พบเอกสารฉบับนี้ในฐานความรู้ AI — เพิ่มเข้าระบบเพื่อให้ AI และเจ้าหน้าที่อ้างอิงได้ในครั้งถัดไป</div>
+                    <button
+                      onClick={() => { setLawModal(null); set({ draftType: "law", draftTitle: lawPrefix(lawModal) || lawModal, draftBody: lawModal, draftFile: null, draftFileError: "", showAddContext: true }); }}
+                      style={st("background:#157347;color:#fff;border:none;border-radius:9px;padding:11px 20px;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;")}>
+                      + เพิ่มบริบทนี้
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

@@ -36,6 +36,9 @@ const initialState = {
   draftType: "law",
   draftTitle: "",
   draftBody: "",
+  draftFile: null,
+  draftFileError: "",
+  contextSaving: false,
   // referral
   handoffAgencies: [],
   handoffNote: "",
@@ -218,10 +221,28 @@ export function AppProvider({ children }) {
   const resetHandoff = useCallback(() => set({ handoffSent: false, handoffAgencies: [], handoffNote: "" }), [set]);
 
   // ---- AI context ----
-  const openAddContext = useCallback(() => set({ showAddContext: true, draftType: "law", draftTitle: "", draftBody: "" }), [set]);
-  const closeAddContext = useCallback(() => set({ showAddContext: false }), [set]);
+  const openAddContext = useCallback(() => set({ showAddContext: true, draftType: "law", draftTitle: "", draftBody: "", draftFile: null, draftFileError: "" }), [set]);
+  const closeAddContext = useCallback(() => set({ showAddContext: false, draftFile: null, draftFileError: "" }), [set]);
+  const setDraftFile = useCallback((file) => set({ draftFile: file, draftFileError: "" }), [set]);
 
   const saveContext = useCallback(async () => {
+    if (state.draftFile) {
+      set({ contextSaving: true, draftFileError: "" });
+      const fd = new FormData();
+      fd.append("file", state.draftFile);
+      fd.append("type", state.draftType);
+      if (state.draftTitle.trim()) fd.append("title", state.draftTitle.trim());
+      try {
+        const r = await fetch("/api/context/upload", { method: "POST", body: fd });
+        const item = await r.json();
+        if (!r.ok) { set({ contextSaving: false, draftFileError: item.error || "อัปโหลดไม่สำเร็จ" }); return; }
+        set({ showAddContext: false, contextSaving: false, draftFile: null, contextItems: [{ ...item, active: !!item.active }, ...state.contextItems] });
+        navigate(pathFor("context"));
+      } catch {
+        set({ contextSaving: false, draftFileError: "อัปโหลดไม่สำเร็จ — ตรวจสอบการเชื่อมต่อ" });
+      }
+      return;
+    }
     if (!state.draftTitle.trim()) return;
     const meta = "เพิ่มเมื่อ " + new Date().toLocaleDateString("th-TH", { day: "numeric", month: "short" });
     const payload = { type: state.draftType, title: state.draftTitle.trim(), body: state.draftBody.trim() || "—", meta };
@@ -233,7 +254,7 @@ export function AppProvider({ children }) {
     } catch {
       set({ contextItems: [{ id: Date.now(), ...payload, active: true }, ...state.contextItems] });
     }
-  }, [set, navigate, state.draftTitle, state.draftBody, state.draftType, state.contextItems]);
+  }, [set, navigate, state.draftTitle, state.draftBody, state.draftType, state.draftFile, state.contextItems]);
 
   const toggleContext = useCallback(async (id) => {
     set({ contextItems: state.contextItems.map((c) => (c.id === id ? { ...c, active: !c.active } : c)) });
@@ -326,7 +347,7 @@ export function AppProvider({ children }) {
   }, []);
 
   const api = { state, set, go, loadCases, loadContext, openCase, ensureCase, setFilter, onFileChosen, analyze,
-    toggleAgency, send, resetHandoff, openAddContext, closeAddContext, saveContext, toggleContext,
+    toggleAgency, send, resetHandoff, openAddContext, closeAddContext, saveContext, toggleContext, setDraftFile,
     checkAuth, login, logout, deleteCase, setVerdict,
     loadUsers, createUserAdmin, updateUserAdmin, deleteUserAdmin, resetPasswordAdmin };
 
