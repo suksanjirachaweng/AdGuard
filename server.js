@@ -642,7 +642,7 @@ app.post("/api/knowledge/crawl", requireAuth, requireAdmin, wrap(async (req, res
           seen.add(src);
           try {
             const md = page.markdown || "";
-            const title = extractFdaTitle(md) || page.metadata.title || src;
+            const title = extractFdaTitle(md, src) || page.metadata.title || src;
             // Skip pages with no real alert title
             if (!title || title === "Safety Alert" || title === "แชร์ข่าวสาร​" || title === "ค้นหาข้อมูลการแจ้งเตือน" || title === "ลิงก์จากเว็บไซต์ภายใน อย.") { job.done++; continue; }
             await store.upsertAlert({
@@ -681,16 +681,46 @@ function extractCategory(url) {
   return m ? m[1] : "general";
 }
 
-// Extract the actual alert title from breadcrumb pattern:
-// "- [ประกาศแจ้งเตือน](url)\n- ชื่อประกาศจริง\n\nชื่อประกาศจริง"
-function extractFdaTitle(md) {
+// Generic titles that need a URL-derived suffix to be distinguishable
+const GENERIC_TITLES = new Set([
+  "เตือนภัย!! ผลิตภัณฑ์สุขภาพ(ยา)ที่ไม่ได้รับอนุญาต",
+  "เตือนภัย!! ผลิตภัณฑ์สุขภาพ(เครื่องมือแพทย์)ที่ไม่ได้รับอนุญาต",
+  "เตือนภัย!! ผลิตภัณฑ์สุขภาพ(เครื่องสำอาง) ที่ไม่ได้รับอนุญาต (ถูกเพิกถอน)",
+]);
+
+// Map generic FDA title → short product category label
+const TITLE_CATEGORY = {
+  "เตือนภัย!! ผลิตภัณฑ์สุขภาพ(ยา)ที่ไม่ได้รับอนุญาต": "ยา",
+  "เตือนภัย!! ผลิตภัณฑ์สุขภาพ(เครื่องมือแพทย์)ที่ไม่ได้รับอนุญาต": "เครื่องมือแพทย์",
+  "เตือนภัย!! ผลิตภัณฑ์สุขภาพ(เครื่องสำอาง) ที่ไม่ได้รับอนุญาต (ถูกเพิกถอน)": "เครื่องสำอาง",
+};
+
+// Extract the actual alert title from breadcrumb pattern.
+// If the title is generic (product name is in an infographic image and
+// not extractable as text), append the URL slug so entries are distinguishable.
+function extractFdaTitle(md, url = "") {
   // Last breadcrumb item that is plain text (not a link)
   const crumbMatch = md.match(/- \[ประกาศ[^\]]+\]\([^)]+\)\n- ([^\n\[]+)/);
-  if (crumbMatch) return crumbMatch[1].trim();
+  const raw = crumbMatch ? crumbMatch[1].trim() : "";
+  if (raw && !GENERIC_TITLES.has(raw)) return raw; // specific enough already
+
   // Fallback: first heading
   const h2 = md.match(/^#{1,3} (.+)$/m);
-  if (h2) return h2[1].trim();
-  return "";
+  const fromHeading = h2 ? h2[1].trim() : "";
+  if (fromHeading && !GENERIC_TITLES.has(fromHeading)) return fromHeading;
+
+  const base = raw || fromHeading;
+  if (!base) return "";
+
+  // Generic title — append slug-based number for disambiguation
+  // e.g. /notification/non18/ → "ยา (ฉบับที่ 18)"
+  const slugMatch = url.match(/non(\d+)/i) || url.match(/g-(\d[\d/-]+)/i);
+  const cat = TITLE_CATEGORY[base] || "ผลิตภัณฑ์สุขภาพ";
+  if (slugMatch) {
+    const num = slugMatch[1].replace(/\//g, "-");
+    return `เตือนภัย!! ${cat}ที่ไม่ได้รับอนุญาต · ฉบับที่ ${num}`;
+  }
+  return base;
 }
 
 // Extract Thai date from content
