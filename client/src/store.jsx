@@ -54,6 +54,15 @@ const initialState = {
   leadBusyId: null,
   discoveryRunning: false,
   discoveryError: "",
+  // knowledge base (FDA alerts)
+  alerts: [],
+  alertsTotal: 0,
+  alertsLoading: false,
+  alertsError: "",
+  alertSearch: "",
+  crawlJobId: null,
+  crawlStatus: null, // null | { status, total, done, imported, errors }
+  crawlPolling: false,
 };
 
 function reducer(state, action) {
@@ -435,11 +444,52 @@ export function AppProvider({ children }) {
     } catch (e) { set({ discoveryRunning: false, discoveryError: e.message }); throw e; }
   }, [set]);
 
+  // ---- knowledge base (FDA alerts) ----------------------------------------
+  const loadAlerts = useCallback(async (q = "", offset = 0) => {
+    set({ alertsLoading: true, alertsError: "" });
+    try {
+      const r = await fetch(`/api/knowledge/alerts?q=${encodeURIComponent(q)}&limit=50&offset=${offset}`);
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || r.statusText);
+      set({ alerts: d.rows, alertsTotal: d.total, alertsLoading: false });
+    } catch (e) { set({ alertsLoading: false, alertsError: e.message }); }
+  }, [set]);
+
+  const deleteAlert = useCallback(async (id) => {
+    await fetch(`/api/knowledge/alerts/${id}`, { method: "DELETE" });
+    // re-load to keep total count accurate
+    loadAlerts(state.alertSearch || "");
+  }, [set]);
+
+  const startCrawl = useCallback(async () => {
+    set({ crawlStatus: { status: "starting" }, crawlPolling: true, crawlJobId: null });
+    try {
+      const r = await fetch("/api/knowledge/crawl", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || r.statusText);
+      set({ crawlJobId: d.jobId, crawlStatus: { status: "scraping", total: 0, done: 0, imported: 0, errors: 0 } });
+    } catch (e) { set({ crawlPolling: false, crawlStatus: { status: "failed", error: e.message } }); }
+  }, [set]);
+
+  const pollCrawl = useCallback(async (jobId) => {
+    try {
+      const r = await fetch(`/api/knowledge/crawl/${jobId}`);
+      const d = await r.json();
+      if (!r.ok) return;
+      set({ crawlStatus: d });
+      if (d.status === "completed" || d.status === "failed") {
+        set({ crawlPolling: false });
+        loadAlerts("");
+      }
+    } catch { /* ignore */ }
+  }, [set, loadAlerts]);
+
   const api = { state, set, go, loadCases, loadContext, openCase, ensureCase, setFilter, onFileChosen, analyze,
     toggleAgency, send, resetHandoff, openAddContext, closeAddContext, saveContext, toggleContext, setDraftFile, deleteContext, attachContextFile,
     checkAuth, login, logout, deleteCase, setVerdict,
     loadUsers, createUserAdmin, updateUserAdmin, deleteUserAdmin, resetPasswordAdmin,
-    loadLeads, createLead, discardLead, deleteLead, promoteLead, runDiscovery, collectLead };
+    loadLeads, createLead, discardLead, deleteLead, promoteLead, runDiscovery, collectLead,
+    loadAlerts, deleteAlert, startCrawl, pollCrawl };
 
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>;
 }

@@ -13,6 +13,7 @@ import Monitoring from "./components/Monitoring.jsx";
 import Handoff from "./components/Handoff.jsx";
 import Analytics from "./components/Analytics.jsx";
 import UserManagement from "./components/UserManagement.jsx";
+import KnowledgeScreen from "./components/KnowledgeScreen.jsx";
 import AnalyzingOverlay from "./components/AnalyzingOverlay.jsx";
 import AddContextModal from "./components/AddContextModal.jsx";
 import Login from "./components/Login.jsx";
@@ -55,6 +56,7 @@ export default function App() {
           <Route path="/monitoring" element={<Monitoring />} />
           <Route path="/handoff" element={<Handoff />} />
           <Route path="/analytics" element={<Analytics />} />
+          <Route path="/knowledge" element={<KnowledgeScreen />} />
           <Route path="/users" element={<UserManagement />} />
           <Route path="*" element={<Dashboard />} />
         </Routes>

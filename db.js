@@ -103,6 +103,19 @@ export async function init() {
     );
   `);
 
+  // ---- Phase 3: FDA safety-alert knowledge base
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS fda_alerts (
+      id           serial PRIMARY KEY,
+      url          text UNIQUE NOT NULL,
+      title        text,
+      content_md   text,
+      category     text,
+      published_at text,
+      crawled_at   timestamptz DEFAULT now()
+    );
+  `);
+
   // Seed a first admin so you can log in immediately. Credentials come from env
   // (ADMIN_EMAIL / ADMIN_PASSWORD); the defaults are dev-only — change them.
   const { rows: [uc] } = await pool.query("SELECT COUNT(*)::int AS n FROM users");
@@ -400,6 +413,63 @@ export async function attachContextFile(id, { body, meta }) {
     [body, meta, id]
   );
   return rows[0] ? mapContext(rows[0]) : null;
+}
+
+// ----- fda_alerts (knowledge base from safetyalert.fda.moph.go.th) -------
+const mapAlert = (r) => ({
+  id: r.id, url: r.url, title: r.title, contentMd: r.content_md,
+  category: r.category, publishedAt: r.published_at, crawledAt: r.crawled_at,
+});
+
+export async function listAlerts({ limit = 50, offset = 0, q = "" } = {}) {
+  if (q) {
+    const term = `%${q}%`;
+    const { rows } = await pool.query(
+      `SELECT * FROM fda_alerts WHERE title ILIKE $1 OR content_md ILIKE $1
+       ORDER BY crawled_at DESC LIMIT $2 OFFSET $3`,
+      [term, limit, offset]
+    );
+    const { rows: [cnt] } = await pool.query(
+      "SELECT COUNT(*)::int AS n FROM fda_alerts WHERE title ILIKE $1 OR content_md ILIKE $1",
+      [term]
+    );
+    return { rows: rows.map(mapAlert), total: cnt.n };
+  }
+  const { rows } = await pool.query(
+    "SELECT * FROM fda_alerts ORDER BY crawled_at DESC LIMIT $1 OFFSET $2",
+    [limit, offset]
+  );
+  const { rows: [cnt] } = await pool.query("SELECT COUNT(*)::int AS n FROM fda_alerts");
+  return { rows: rows.map(mapAlert), total: cnt.n };
+}
+
+export async function upsertAlert({ url, title, contentMd, category, publishedAt }) {
+  const { rows } = await pool.query(
+    `INSERT INTO fda_alerts (url,title,content_md,category,published_at)
+     VALUES ($1,$2,$3,$4,$5)
+     ON CONFLICT (url) DO UPDATE
+       SET title=$2, content_md=$3, category=$4, published_at=$5, crawled_at=now()
+     RETURNING *`,
+    [url, title, contentMd || "", category || "", publishedAt || ""]
+  );
+  return mapAlert(rows[0]);
+}
+
+export async function deleteAlert(id) {
+  const { rowCount } = await pool.query("DELETE FROM fda_alerts WHERE id=$1", [id]);
+  return rowCount > 0;
+}
+
+export async function searchAlertsForContext(keywords, limit = 5) {
+  if (!keywords || keywords.length === 0) return [];
+  const term = `%${keywords.join("%")}%`;
+  const { rows } = await pool.query(
+    `SELECT id, url, title, LEFT(content_md, 1500) AS content_md
+     FROM fda_alerts WHERE title ILIKE $1 OR content_md ILIKE $1
+     ORDER BY crawled_at DESC LIMIT $2`,
+    [term, limit]
+  );
+  return rows.map(mapAlert);
 }
 
 // ----- users -------------------------------------------------------------

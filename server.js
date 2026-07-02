@@ -9,6 +9,7 @@ import { createHash } from "crypto";
 import { readFileSync, existsSync } from "fs";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
+import FirecrawlApp from "@mendable/firecrawl-js";
 import * as store from "./db.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -150,11 +151,22 @@ const SYSTEM = `คุณคือเครื่องมือ AI ของส
 // discovery-lead promotion flow — both just need { mode, url, text,
 // imageBase64, imageMediaType, context } in and an analysis result out.
 async function runAnalysis({ mode, url = "", text = "", imageBase64 = "", imageMediaType = "image/jpeg", context = [] }) {
+  // Auto-enrich: pull relevant FDA safety alerts from the knowledge base
+  const combinedText = [url, text].filter(Boolean).join(" ").slice(0, 300);
+  const keywords = combinedText.match(/[฀-๿a-zA-Z]{3,}/g) || [];
+  const fdaAlerts = keywords.length
+    ? await store.searchAlertsForContext(keywords.slice(0, 6), 3).catch(() => [])
+    : [];
+  const enrichedContext = [
+    ...fdaAlerts.map((a) => ({ title: `[ประกาศเตือนภัย อย.] ${a.title}`, body: a.contentMd })),
+    ...(Array.isArray(context) ? context : []),
+  ];
+
   // context items come as { title, body } — include a body excerpt so the
   // model actually reads attached documents, not just their titles.
   const CTX_BODY_EXCERPT = 1500;
-  const ctxNote = Array.isArray(context) && context.length
-    ? "\n\nบริบท/ฐานความรู้เพิ่มเติมที่ต้องใช้ประกอบการพิจารณา:\n" + context.map((c) => {
+  const ctxNote = Array.isArray(enrichedContext) && enrichedContext.length
+    ? "\n\nบริบท/ฐานความรู้เพิ่มเติมที่ต้องใช้ประกอบการพิจารณา:\n" + enrichedContext.map((c) => {
         const title = typeof c === "string" ? c : (c.title || "");
         const body = typeof c === "string" ? "" : (c.body || "");
         const excerpt = body && body !== "—" ? body.slice(0, CTX_BODY_EXCERPT) + (body.length > CTX_BODY_EXCERPT ? "…" : "") : "";
@@ -519,6 +531,103 @@ app.patch("/api/users/:id/password", requireAuth, requireAdmin, wrap(async (req,
   if (!ok) return res.status(404).json({ error: "ไม่พบผู้ใช้" });
   res.json({ ok: true });
 }));
+
+// ---- Knowledge base (FDA alerts via Firecrawl) --------------------------
+// In-memory crawl job state (single-process; resets on restart)
+const crawlJobs = new Map(); // jobId → { status, total, done, errors, startedAt }
+
+app.get("/api/knowledge/alerts", requireAuth, wrap(async (req, res) => {
+  const { q = "", limit = "50", offset = "0" } = req.query;
+  const result = await store.listAlerts({ q, limit: +limit, offset: +offset });
+  res.json(result);
+}));
+
+app.delete("/api/knowledge/alerts/:id", requireAuth, requireAdmin, wrap(async (req, res) => {
+  const ok = await store.deleteAlert(+req.params.id);
+  res.json({ ok });
+}));
+
+app.post("/api/knowledge/crawl", requireAuth, requireAdmin, wrap(async (req, res) => {
+  const key = process.env.FIRECRAWL_API_KEY;
+  if (!key) return res.status(503).json({ error: "FIRECRAWL_API_KEY ยังไม่ได้ตั้งค่า" });
+
+  const { url = "https://safetyalert.fda.moph.go.th/", limit: pageLimit = 200 } = req.body || {};
+  const fc = new FirecrawlApp({ apiKey: key });
+
+  // Start an async crawl job (Firecrawl returns a job ID)
+  let crawlResp;
+  try {
+    crawlResp = await fc.asyncCrawlUrl(url, {
+      limit: pageLimit,
+      scrapeOptions: { formats: ["markdown"], onlyMainContent: true },
+      excludePaths: ["/wp-content/*", "/wp-admin/*", "*.pdf"],
+    });
+  } catch (err) {
+    console.error("Firecrawl start error:", err?.message || err);
+    return res.status(502).json({ error: "เริ่มต้นการค้นหาเว็บไม่สำเร็จ กรุณาตรวจสอบ Firecrawl API key" });
+  }
+
+  if (!crawlResp?.success || !crawlResp?.id) {
+    return res.status(502).json({ error: "Firecrawl ไม่ตอบสนอง" });
+  }
+
+  const jobId = crawlResp.id;
+  crawlJobs.set(jobId, { status: "scraping", total: 0, done: 0, imported: 0, errors: 0, startedAt: Date.now() });
+  res.json({ jobId, status: "scraping" });
+
+  // Background: poll Firecrawl every 5s, import pages as they complete
+  (async () => {
+    const job = crawlJobs.get(jobId);
+    const seen = new Set();
+    let polls = 0;
+    while (polls < 120) { // max 10 min
+      await new Promise((r) => setTimeout(r, 5000));
+      polls++;
+      try {
+        const status = await fc.checkCrawlStatus(jobId);
+        job.total = status.total || 0;
+        job.status = status.status; // "scraping" | "completed" | "failed"
+
+        // Import any new pages
+        for (const page of status.data || []) {
+          if (!page.metadata?.sourceURL || seen.has(page.metadata.sourceURL)) continue;
+          seen.add(page.metadata.sourceURL);
+          try {
+            await store.upsertAlert({
+              url: page.metadata.sourceURL,
+              title: page.metadata.title || page.metadata.sourceURL,
+              contentMd: page.markdown || "",
+              category: extractCategory(page.metadata.sourceURL),
+              publishedAt: page.metadata.publishedAt || page.metadata.ogDate || "",
+            });
+            job.imported++;
+          } catch (e) {
+            job.errors++;
+          }
+          job.done++;
+        }
+        if (status.status === "completed" || status.status === "failed") break;
+      } catch (e) {
+        console.error("Firecrawl poll error:", e?.message || e);
+        job.errors++;
+      }
+    }
+    if (crawlJobs.get(jobId)?.status === "scraping") {
+      crawlJobs.get(jobId).status = "completed";
+    }
+  })();
+}));
+
+app.get("/api/knowledge/crawl/:jobId", requireAuth, wrap(async (req, res) => {
+  const job = crawlJobs.get(req.params.jobId);
+  if (!job) return res.status(404).json({ error: "ไม่พบงานนี้" });
+  res.json(job);
+}));
+
+function extractCategory(url) {
+  const m = url.match(/\/(\w+)\//);
+  return m ? m[1] : "general";
+}
 
 // Lightweight health check for uptime pings (UptimeRobot etc.) — no DB hit,
 // keeps a free-tier host awake without loading the database.

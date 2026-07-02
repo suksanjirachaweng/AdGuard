@@ -7,6 +7,7 @@ export const navDef = [
   { key: "monitoring", th: "เฝ้าระวัง",      en: "Monitoring",    icon: "🔭" },
   { key: "handoff",   th: "ส่งต่อหน่วยงาน", en: "Referral",      icon: "➤" },
   { key: "analytics", th: "วัดประสิทธิภาพ", en: "Model Analytics", icon: "◈" },
+  { key: "knowledge", th: "คลังความรู้",      en: "Knowledge Base",  icon: "📚", adminOnly: false },
   { key: "users",     th: "จัดการผู้ใช้",    en: "User Management", icon: "👤", adminOnly: true },
 ];
 
@@ -19,6 +20,7 @@ export const titles = {
   monitoring: ["เฝ้าระวังโฆษณาบนอินเทอร์เน็ต", "Web & Social Monitoring Queue"],
   handoff:   ["ส่งต่อหน่วยงานที่เกี่ยวข้อง", "Inter-agency Referral"],
   analytics: ["วัดประสิทธิภาพ AI Model", "Model Performance Analytics"],
+  knowledge: ["คลังความรู้ อย.", "FDA Knowledge Base · ประกาศเตือนภัย"],
   users:     ["จัดการผู้ใช้งาน", "User Management"],
 };
 

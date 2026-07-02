@@ -14,6 +14,7 @@
     "test:all": "vitest run && npm --prefix client run test"
   },
   "dependencies": {
+    "@mendable/firecrawl-js": "^1.21.1",
     "bcryptjs": "^2.4.3",
     "cookie-parser": "^1.4.7",
     "express": "^4.21.2",
