@@ -206,7 +206,7 @@ async function runAnalysis({ mode, url = "", text = "", imageBase64 = "", imageM
   const t0 = Date.now();
   const completion = await client.chat.completions.create({
     model: OPENROUTER_MODEL,
-    max_tokens: 4096,
+    max_tokens: 8192,
     response_format: {
       type: "json_schema",
       json_schema: { name: "analysis", strict: true, schema: ANALYSIS_SCHEMA },
@@ -222,6 +222,11 @@ async function runAnalysis({ mode, url = "", text = "", imageBase64 = "", imageM
   if (choice.finish_reason === "content_filter") {
     const err = new Error("AI ปฏิเสธการวิเคราะห์เนื้อหานี้");
     err.status = 422;
+    throw err;
+  }
+  if (choice.finish_reason === "length") {
+    const err = new Error("AI ตอบกลับไม่สมบูรณ์ (ข้อความยาวเกินไป) กรุณาลดปริมาณเนื้อหาแล้วลองใหม่");
+    err.status = 502;
     throw err;
   }
 
