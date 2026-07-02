@@ -560,7 +560,7 @@ app.post("/api/knowledge/crawl", requireAuth, requireAdmin, wrap(async (req, res
     crawlResp = await fc.asyncCrawlUrl(url, {
       limit: pageLimit,
       scrapeOptions: { formats: ["markdown"], onlyMainContent: true },
-      excludePaths: ["/wp-content/*", "/wp-admin/*", "*.pdf"],
+      excludePaths: ["/wp-content/", "/wp-admin/"],
     });
   } catch (err) {
     console.error("Firecrawl start error:", err?.message || err);
@@ -590,15 +590,22 @@ app.post("/api/knowledge/crawl", requireAuth, requireAdmin, wrap(async (req, res
 
         // Import any new pages
         for (const page of status.data || []) {
-          if (!page.metadata?.sourceURL || seen.has(page.metadata.sourceURL)) continue;
-          seen.add(page.metadata.sourceURL);
+          const src = page.metadata?.sourceURL || "";
+          if (!src || seen.has(src)) continue;
+          // Skip non-alert pages (sitemap, rss, search, etc.)
+          if (/sitemap|rss|\/search|\/tag\/|\/category\//.test(src)) continue;
+          seen.add(src);
           try {
+            const md = page.markdown || "";
+            const title = extractFdaTitle(md) || page.metadata.title || src;
+            // Skip pages with no real alert title
+            if (!title || title === "Safety Alert" || title === "แชร์ข่าวสาร​" || title === "ค้นหาข้อมูลการแจ้งเตือน" || title === "ลิงก์จากเว็บไซต์ภายใน อย.") { job.done++; continue; }
             await store.upsertAlert({
-              url: page.metadata.sourceURL,
-              title: page.metadata.title || page.metadata.sourceURL,
-              contentMd: page.markdown || "",
+              url: src,
+              title,
+              contentMd: md,
               category: extractCategory(page.metadata.sourceURL),
-              publishedAt: page.metadata.publishedAt || page.metadata.ogDate || "",
+              publishedAt: extractFdaDate(md) || page.metadata.publishedAt || page.metadata.ogDate || "",
             });
             job.imported++;
           } catch (e) {
@@ -627,6 +634,24 @@ app.get("/api/knowledge/crawl/:jobId", requireAuth, wrap(async (req, res) => {
 function extractCategory(url) {
   const m = url.match(/\/(\w+)\//);
   return m ? m[1] : "general";
+}
+
+// Extract the actual alert title from breadcrumb pattern:
+// "- [ประกาศแจ้งเตือน](url)\n- ชื่อประกาศจริง\n\nชื่อประกาศจริง"
+function extractFdaTitle(md) {
+  // Last breadcrumb item that is plain text (not a link)
+  const crumbMatch = md.match(/- \[ประกาศ[^\]]+\]\([^)]+\)\n- ([^\n\[]+)/);
+  if (crumbMatch) return crumbMatch[1].trim();
+  // Fallback: first heading
+  const h2 = md.match(/^#{1,3} (.+)$/m);
+  if (h2) return h2[1].trim();
+  return "";
+}
+
+// Extract Thai date from content
+function extractFdaDate(md) {
+  const m = md.match(/(\d{1,2}\s+(?:มกราคม|กุมภาพันธ์|มีนาคม|เมษายน|พฤษภาคม|มิถุนายน|กรกฎาคม|สิงหาคม|กันยายน|ตุลาคม|พฤศจิกายน|ธันวาคม)\s+\d{4})/);
+  return m ? m[1] : "";
 }
 
 // Lightweight health check for uptime pings (UptimeRobot etc.) — no DB hit,
