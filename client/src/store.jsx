@@ -421,11 +421,23 @@ export function AppProvider({ children }) {
     } catch (e) { set({ leadBusyId: null }); throw e; }
   }, [set, state.leads]);
 
-  const promoteLead = useCallback(async (id) => {
+  const promoteLead = useCallback(async (id, { force = false } = {}) => {
     set({ leadBusyId: id });
     try {
-      const r = await fetch("/api/leads/" + id + "/promote", { method: "POST" });
+      const r = await fetch("/api/leads/" + id + "/promote", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ force }),
+      });
       const d = await r.json();
+      if (r.status === 422) {
+        // Prescreen blocked — surface to UI with structured info
+        set({ leadBusyId: null });
+        const err = new Error(d.error || "ไม่ผ่านการกรองเบื้องต้น");
+        err.prescreen = true;
+        err.hint = d.hint;
+        throw err;
+      }
       if (!r.ok) throw new Error(d.error || r.statusText);
       set({ leads: state.leads.map((l) => (l.id === id ? d.lead : l)), leadBusyId: null });
       navigate(pathFor("result") + "/" + d.caseId);

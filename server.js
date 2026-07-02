@@ -10,6 +10,7 @@ import { readFileSync, existsSync } from "fs";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
 import FirecrawlApp from "@mendable/firecrawl-js";
+import cron from "node-cron";
 import * as store from "./db.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -355,9 +356,48 @@ app.post("/api/leads/:id/collect", requireAuth, wrap(async (req, res) => {
   res.json(updated);
 }));
 
+// Prescreen: match text against banned-keyword list from context_items type='banned'.
+// Returns { passed, matchedBanned } — if passed=false the lead is likely irrelevant
+// and we avoid a costly AI call.
+async function prescreenLead(text) {
+  const ctx = await store.listContext();
+  const bannedItem = ctx.find((c) => c.type === "banned" && c.active);
+  if (!bannedItem || !bannedItem.body) return { passed: true, matchedBanned: [] };
+  // Body is bullet-delimited: "คำ1 · คำ2 · ..." or newline-separated
+  const keywords = bannedItem.body
+    .split(/[·\n,]/)
+    .map((k) => k.replace(/^\s*[-•*]\s*/, "").trim())
+    .filter((k) => k.length > 1);
+  const norm = text.toLowerCase();
+  const matchedBanned = keywords.filter((k) => norm.includes(k.toLowerCase()));
+  // Must match at least 1 banned keyword to be worth sending to AI
+  return { passed: matchedBanned.length > 0, matchedBanned };
+}
+
+app.post("/api/leads/:id/prescreen", requireAuth, wrap(async (req, res) => {
+  const lead = await store.getLead(Number(req.params.id));
+  if (!lead) return res.status(404).json({ error: "ไม่พบรายการ" });
+  const text = [lead.url, lead.rawText, ...(lead.matchedKeywords || [])].filter(Boolean).join(" ");
+  const result = await prescreenLead(text);
+  res.json(result);
+}));
+
 app.post("/api/leads/:id/promote", requireAuth, wrap(async (req, res) => {
   const lead = await store.getLead(Number(req.params.id));
   if (!lead) return res.status(404).json({ error: "ไม่พบรายการ" });
+
+  // Prescreen before sending to AI (skip if force=true from UI)
+  if (!req.body?.force) {
+    const text = [lead.url, lead.rawText, ...(lead.matchedKeywords || [])].filter(Boolean).join(" ");
+    const { passed, matchedBanned } = await prescreenLead(text);
+    if (!passed) {
+      return res.status(422).json({
+        error: "ไม่พบคำต้องสงสัยในเนื้อหา อาจไม่ใช่โฆษณาเกินจริง",
+        matchedBanned,
+        hint: "ส่ง force=true หากต้องการวิเคราะห์ต่อ",
+      });
+    }
+  }
 
   const context = (await store.listContext()).filter((c) => c.active).map((c) => ({ title: c.title, body: c.body }));
   let analysis;
@@ -690,7 +730,101 @@ if (isMain) {
     } else {
       console.log(`✓ OpenRouter model: ${OPENROUTER_MODEL}`);
     }
+    startSchedules();
   });
+}
+
+// ---- Scheduled jobs ---------------------------------------------------------
+// Auto-discovery: ค้นหาเว็บต้องสงสัยทุกวัน เวลา 08:00 น. (Asia/Bangkok)
+// Auto-crawl FDA: ดึงข้อมูล safetyalert.fda.moph.go.th ทุกวันอาทิตย์ เวลา 02:00 น.
+function startSchedules() {
+  if (process.env.DISABLE_SCHEDULES === "true") return;
+
+  // Daily discovery at 08:00 ICT
+  if (process.env.SERPAPI_API_KEY) {
+    cron.schedule("0 8 * * *", runScheduledDiscovery, { timezone: "Asia/Bangkok" });
+    console.log("✓ กำหนดการค้นหาเว็บอัตโนมัติ: ทุกวัน 08:00 น.");
+  }
+
+  // Weekly FDA crawl on Sunday 02:00 ICT
+  if (process.env.FIRECRAWL_API_KEY) {
+    cron.schedule("0 2 * * 0", runScheduledFdaCrawl, { timezone: "Asia/Bangkok" });
+    console.log("✓ กำหนดการอัปเดตคลังความรู้ อย.: ทุกวันอาทิตย์ 02:00 น.");
+  }
+}
+
+async function runScheduledDiscovery() {
+  console.log("[schedule] เริ่มค้นหาเว็บต้องสงสัยอัตโนมัติ…");
+  try {
+    let queued = 0, skipped = 0;
+    for (const { q, keyword } of DISCOVERY_QUERIES) {
+      const url = "https://serpapi.com/search.json?" + new URLSearchParams({
+        engine: "google", q, gl: "th", hl: "th", num: "10",
+        api_key: process.env.SERPAPI_API_KEY,
+      });
+      const r = await fetch(url);
+      if (!r.ok) { console.warn(`[schedule] SERP error for "${q}": ${r.status}`); continue; }
+      const data = await r.json();
+      for (const item of data.organic_results || []) {
+        if (!item.link) continue;
+        const lead = await store.insertLead({
+          url: item.link, platform: "website",
+          rawText: [item.title, item.snippet].filter(Boolean).join(" — "),
+          matchedKeywords: [keyword],
+        });
+        if (lead) queued++; else skipped++;
+      }
+    }
+    console.log(`[schedule] ค้นพบ leads ใหม่ ${queued} รายการ (ซ้ำ ${skipped})`);
+  } catch (e) {
+    console.error("[schedule] discovery error:", e?.message || e);
+  }
+}
+
+async function runScheduledFdaCrawl() {
+  const key = process.env.FIRECRAWL_API_KEY;
+  if (!key) return;
+  console.log("[schedule] เริ่มอัปเดตคลังความรู้ อย.…");
+  try {
+    const fc = new FirecrawlApp({ apiKey: key });
+    const crawlResp = await fc.asyncCrawlUrl("https://safetyalert.fda.moph.go.th/", {
+      limit: 200,
+      scrapeOptions: { formats: ["markdown"], onlyMainContent: true },
+      excludePaths: ["/wp-content/", "/wp-admin/"],
+    });
+    if (!crawlResp?.success || !crawlResp?.id) {
+      console.error("[schedule] Firecrawl ไม่ตอบสนอง");
+      return;
+    }
+    // Poll to completion, upsert pages
+    const seen = new Set();
+    let imported = 0, polls = 0;
+    while (polls < 120) {
+      await new Promise((r) => setTimeout(r, 5000));
+      polls++;
+      const status = await fc.checkCrawlStatus(crawlResp.id).catch(() => null);
+      if (!status) continue;
+      for (const page of status.data || []) {
+        const src = page.metadata?.sourceURL || "";
+        if (!src || seen.has(src) || /sitemap|rss|\/search/.test(src)) continue;
+        seen.add(src);
+        const md = page.markdown || "";
+        const title = extractFdaTitle(md) || page.metadata.title || src;
+        if (!title || ["Safety Alert", "แชร์ข่าวสาร​", "ค้นหาข้อมูลการแจ้งเตือน", "ลิงก์จากเว็บไซต์ภายใน อย."].includes(title)) continue;
+        await store.upsertAlert({
+          url: src, title,
+          contentMd: md,
+          category: extractCategory(src),
+          publishedAt: extractFdaDate(md) || "",
+        }).catch(() => {});
+        imported++;
+      }
+      if (status.status === "completed" || status.status === "failed") break;
+    }
+    console.log(`[schedule] อัปเดตคลังความรู้ อย. สำเร็จ — ${imported} รายการ`);
+  } catch (e) {
+    console.error("[schedule] FDA crawl error:", e?.message || e);
+  }
 }
 
 export { app };

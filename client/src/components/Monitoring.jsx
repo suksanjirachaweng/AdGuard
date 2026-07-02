@@ -100,6 +100,7 @@ function DiscoverySection({ onRun, running }) {
         <div style={st("flex:1;min-width:240px;")}>
           <div style={st("font-size:13.5px;font-weight:700;color:#16241d;margin-bottom:3px;")}>🔍 ค้นหาเว็บไซต์ต้องสงสัยอัตโนมัติ</div>
           <div style={st("font-size:12px;color:#7d8e86;line-height:1.6;")}>ค้นหาเว็บไซต์ที่เข้าข่ายอวดอ้างสรรพคุณเกินจริง (อาหาร/ยา) แล้วเพิ่มเข้าคิวอัตโนมัติ</div>
+          <div style={st("font-size:11px;color:#9aab9f;margin-top:4px;")}>🕗 ระบบค้นหาให้อัตโนมัติทุกวัน 08:00 น.</div>
         </div>
         <button onClick={run} disabled={running}
           style={st("background:#0f3026;color:#fff;border:none;border-radius:9px;padding:11px 20px;font-family:inherit;font-size:13px;font-weight:600;cursor:" + (running ? "not-allowed" : "pointer") + ";white-space:nowrap;")}>
@@ -126,6 +127,7 @@ export default function Monitoring() {
   const [tab, setTab] = useState("pending");
   const [actionError, setActionError] = useState("");
   const [busyAction, setBusyAction] = useState(""); // "promote" | "collect" | "discard"
+  const [prescreenWarn, setPrescreenWarn] = useState(null); // { id, message } — awaiting force confirm
 
   useEffect(() => { loadLeads(tab); }, [tab, loadLeads]);
 
@@ -135,10 +137,17 @@ export default function Monitoring() {
     return result;
   };
 
-  const handlePromote = async (id) => {
-    setActionError(""); setBusyAction("promote");
-    try { await promoteLead(id); }
-    catch (e) { setActionError(e.message); }
+  const handlePromote = async (id, force = false) => {
+    setActionError(""); setPrescreenWarn(null); setBusyAction("promote");
+    try { await promoteLead(id, { force }); }
+    catch (e) {
+      if (e.prescreen) {
+        // Blocked by keyword filter — ask user whether to force-send
+        setPrescreenWarn({ id, message: e.message });
+      } else {
+        setActionError(e.message);
+      }
+    }
     finally { setBusyAction(""); }
   };
   const handleDiscard = async (id) => {
@@ -171,6 +180,25 @@ export default function Monitoring() {
 
       {actionError && (
         <div style={st("background:#fdecea;color:#c0392b;padding:12px 16px;border-radius:10px;font-size:13px;margin-bottom:16px;")}>⚠ {friendlyError(actionError)}</div>
+      )}
+
+      {prescreenWarn && (
+        <div style={st("background:#fff8e1;border:1px solid #ffe082;border-radius:10px;padding:14px 18px;margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;")}>
+          <div style={st("flex:1;min-width:200px;")}>
+            <div style={st("font-size:13px;font-weight:600;color:#7a5c00;margin-bottom:2px;")}>⚠ ไม่พบคำต้องสงสัยในเนื้อหา</div>
+            <div style={st("font-size:12px;color:#9a7a00;")}>เนื้อหานี้อาจไม่ใช่โฆษณาเกินจริง ต้องการส่งให้ AI วิเคราะห์ต่อหรือไม่?</div>
+          </div>
+          <div style={st("display:flex;gap:8px;")}>
+            <button onClick={() => handlePromote(prescreenWarn.id, true)}
+              style={st("padding:7px 14px;background:#f59e0b;color:#fff;border:none;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;")}>
+              วิเคราะห์ต่อเลย
+            </button>
+            <button onClick={() => setPrescreenWarn(null)}
+              style={st("padding:7px 14px;background:#eef2f0;color:#5a6b63;border:none;border-radius:7px;font-size:13px;cursor:pointer;")}>
+              ยกเลิก
+            </button>
+          </div>
+        </div>
       )}
 
       <div style={st("display:flex;gap:6px;margin-bottom:16px;")}>
