@@ -14,6 +14,7 @@
     "test:all": "vitest run && npm --prefix client run test"
   },
   "dependencies": {
+    "@line/bot-sdk": "^11.0.0",
     "@mendable/firecrawl-js": "^1.21.1",
     "bcryptjs": "^2.4.3",
     "cookie-parser": "^1.4.7",

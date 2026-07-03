@@ -11,6 +11,7 @@ import { fileURLToPath } from "url";
 import { dirname, join } from "path";
 import FirecrawlApp from "@mendable/firecrawl-js";
 import cron from "node-cron";
+import { createHmac } from "crypto";
 import * as store from "./db.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -693,6 +694,158 @@ function extractFdaDate(md) {
   const m = md.match(/(\d{1,2}\s+(?:มกราคม|กุมภาพันธ์|มีนาคม|เมษายน|พฤษภาคม|มิถุนายน|กรกฎาคม|สิงหาคม|กันยายน|ตุลาคม|พฤศจิกายน|ธันวาคม)\s+\d{4})/);
   return m ? m[1] : "";
 }
+
+// ---- LINE Messaging API webhook ------------------------------------------
+// Receives reports from LINE users: send a URL → creates a lead ticket
+// and auto-replies with a reference number.
+// Webhook URL to set in LINE Developers: https://<host>/api/line/webhook
+
+function lineVerifySignature(secret, body, signature) {
+  const digest = createHmac("sha256", secret).update(body).digest("base64");
+  return digest === signature;
+}
+
+async function lineReply(replyToken, messages) {
+  const token = process.env.LINE_CHANNEL_ACCESS_TOKEN;
+  if (!token) return;
+  await fetch("https://api.line.me/v2/bot/message/reply", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ replyToken, messages }),
+  });
+}
+
+// LINE sends raw body for signature verification — must use express.raw here
+app.post("/api/line/webhook",
+  express.raw({ type: "application/json" }),
+  async (req, res) => {
+    const secret = process.env.LINE_CHANNEL_SECRET;
+    const sig = req.headers["x-line-signature"];
+    if (!secret || !sig || !lineVerifySignature(secret, req.body, sig)) {
+      return res.status(401).json({ error: "Invalid signature" });
+    }
+
+    const body = JSON.parse(req.body.toString());
+    res.status(200).json({ ok: true }); // respond immediately to LINE
+
+    for (const event of body.events || []) {
+      if (event.type !== "message" || event.message.type !== "text") continue;
+      const text = (event.message.text || "").trim();
+      const replyToken = event.replyToken;
+
+      // Detect URL in message
+      const urlMatch = text.match(/https?:\/\/[^\s]+/);
+      if (!urlMatch) {
+        await lineReply(replyToken, [{
+          type: "text",
+          text: "🙏 ขอบคุณที่แจ้งเบาะแสครับ\n\nกรุณาส่ง URL ของโฆษณาที่ต้องการแจ้ง เช่น\nhttps://www.example.com/product",
+        }]);
+        continue;
+      }
+
+      const url = urlMatch[0];
+      // Extract any non-URL text as description
+      const description = text.replace(urlMatch[0], "").trim();
+
+      // Create lead ticket
+      const lead = await store.insertLead({
+        url,
+        platform: "line_report",
+        rawText: description || `รายงานจาก LINE: ${url}`,
+        matchedKeywords: ["line_report"],
+      });
+
+      if (!lead) {
+        // URL already in queue
+        await lineReply(replyToken, [{
+          type: "text",
+          text: `✅ ขอบคุณครับ URL นี้อยู่ในระบบตรวจสอบแล้ว\n🔗 ${url}\n\nเจ้าหน้าที่กำลังดำเนินการ`,
+        }]);
+        continue;
+      }
+
+      await lineReply(replyToken, [{
+        type: "text",
+        text: `✅ รับเรื่องแล้วครับ!\n\n📋 หมายเลขอ้างอิง: LEAD-${lead.id}\n🔗 ${url}\n\nเจ้าหน้าที่ อย. จะตรวจสอบและดำเนินการต่อไป ขอบคุณที่ช่วยแจ้งเบาะแสครับ 🙏`,
+      }]);
+    }
+  }
+);
+
+// ---- Public check endpoint (no auth — for ผู้ประกอบการ) ------------------
+// POST /api/public/check — checks URL/product against existing cases + FDA alerts
+// then runs AI analysis if not found. Rate-limited to 10 req/min per IP.
+const publicCheckCounts = new Map(); // ip → { count, resetAt }
+function rateLimit(req) {
+  const ip = req.ip || req.socket.remoteAddress || "unknown";
+  const now = Date.now();
+  const entry = publicCheckCounts.get(ip) || { count: 0, resetAt: now + 60_000 };
+  if (now > entry.resetAt) { entry.count = 0; entry.resetAt = now + 60_000; }
+  entry.count++;
+  publicCheckCounts.set(ip, entry);
+  return entry.count > 10; // true = rate limited
+}
+
+app.post("/api/public/check", wrap(async (req, res) => {
+  if (rateLimit(req)) return res.status(429).json({ error: "ส่งคำขอบ่อยเกินไป กรุณารอสักครู่" });
+
+  const { url = "", productName = "" } = req.body || {};
+  const query = (url || productName).trim();
+  if (!query) return res.status(400).json({ error: "กรุณาระบุ URL หรือชื่อผลิตภัณฑ์" });
+
+  // 1. Check existing cases in DB first (no AI cost)
+  const { rows: cases } = await (async () => {
+    try {
+      const pg = await store.init();
+      return pg.query(
+        `SELECT id, title, source, risk, risk_th, status, status_th, score, analysis_json
+         FROM cases WHERE source ILIKE $1 OR title ILIKE $1 ORDER BY created_at DESC LIMIT 3`,
+        [`%${query}%`]
+      );
+    } catch { return { rows: [] }; }
+  })();
+
+  // 2. Check FDA alerts knowledge base
+  const alerts = await store.searchAlertsForContext([query], 3).catch(() => []);
+
+  if (cases.length > 0 || alerts.length > 0) {
+    // Found in existing data — return without AI call
+    return res.json({
+      source: "database",
+      cases: cases.map((c) => ({
+        id: c.id, title: c.title, risk: c.risk, riskTh: c.risk_th,
+        status: c.status, statusTh: c.status_th, score: c.score,
+        verdict: c.analysis_json?.verdictTitle || null,
+      })),
+      alerts: alerts.map((a) => ({ title: a.title, url: a.url, publishedAt: a.publishedAt })),
+      checkedAt: new Date().toISOString(),
+    });
+  }
+
+  // 3. Not found — run AI analysis (costs tokens, rate-limited above)
+  if (!process.env.OPENROUTER_API_KEY) {
+    return res.json({ source: "not_found", cases: [], alerts: [], checkedAt: new Date().toISOString() });
+  }
+
+  try {
+    const context = (await store.listContext()).filter((c) => c.active).map((c) => ({ title: c.title, body: c.body }));
+    const { result } = await runAnalysis({ mode: "link", url: url || "", text: productName || "", context });
+    return res.json({
+      source: "ai_analysis",
+      riskLevel: result.riskLevel,
+      riskTh: result.riskTh,
+      riskScore: result.riskScore,
+      verdictTitle: result.verdictTitle,
+      verdictSummary: result.verdictSummary,
+      violations: (result.violations || []).length,
+      cases: [],
+      alerts: [],
+      checkedAt: new Date().toISOString(),
+    });
+  } catch (err) {
+    return res.status(502).json({ error: "วิเคราะห์ไม่สำเร็จในขณะนี้ กรุณาลองใหม่ภายหลัง" });
+  }
+}));
 
 // Lightweight health check for uptime pings (UptimeRobot etc.) — no DB hit,
 // keeps a free-tier host awake without loading the database.
