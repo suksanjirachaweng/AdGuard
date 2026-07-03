@@ -17,12 +17,18 @@ import KnowledgeScreen from "./components/KnowledgeScreen.jsx";
 import AnalyzingOverlay from "./components/AnalyzingOverlay.jsx";
 import AddContextModal from "./components/AddContextModal.jsx";
 import Login from "./components/Login.jsx";
+import PublicCheck from "./components/PublicCheck.jsx";
 
 export default function App() {
   const { state } = useApp();
   const [menuOpen, setMenuOpen] = React.useState(false);
 
   // While we verify the session, show a minimal splash to avoid a flash of login.
+  // Public routes — accessible without auth
+  if (typeof window !== "undefined" && window.location.pathname === "/check") {
+    return <PublicCheck />;
+  }
+
   if (!state.authChecked) {
     return (
       <div style={st("min-height:100dvh;display:flex;align-items:center;justify-content:center;background:#eef2f0;")}>
