@@ -27,7 +27,10 @@ try {
 
 const PORT = process.env.PORT || 3000;
 const app = express();
-app.use(express.json({ limit: "12mb" }));
+app.use(express.json({
+  limit: "12mb",
+  verify: (req, _res, buf) => { req.rawBody = buf; }, // needed for LINE webhook HMAC verification
+}));
 app.use(cookieParser());
 // Serve the built React app (client/ → vite build → ./public) when present.
 // Falls through to the original vanilla files at the project root otherwise.
@@ -715,17 +718,15 @@ async function lineReply(replyToken, messages) {
   });
 }
 
-// LINE sends raw body for signature verification — must use express.raw here
-app.post("/api/line/webhook",
-  express.raw({ type: "application/json" }),
-  async (req, res) => {
+app.post("/api/line/webhook", async (req, res) => {
     const secret = process.env.LINE_CHANNEL_SECRET;
     const sig = req.headers["x-line-signature"];
-    if (!secret || !sig || !lineVerifySignature(secret, req.body, sig)) {
+    // req.rawBody is captured by the verify callback in express.json()
+    if (!secret || !sig || !lineVerifySignature(secret, req.rawBody, sig)) {
       return res.status(401).json({ error: "Invalid signature" });
     }
 
-    const body = JSON.parse(req.body.toString());
+    const body = req.body; // already parsed by express.json()
     res.status(200).json({ ok: true }); // respond immediately to LINE
 
     for (const event of body.events || []) {
