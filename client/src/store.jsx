@@ -70,8 +70,10 @@ const initialState = {
 
 function reducer(state, action) {
   switch (action.type) {
-    case "patch":
-      return { ...state, ...action.patch };
+    case "patch": {
+      const patch = typeof action.patch === "function" ? action.patch(state) : action.patch;
+      return { ...state, ...patch };
+    }
     default:
       return state;
   }
