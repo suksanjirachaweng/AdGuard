@@ -614,10 +614,6 @@ export default function ContextScreen() {
     setOpenDoc(cur => cur?.id === id ? { ...cur, ...updated } : cur);
   };
 
-  // Pill helper
-  const activePill = "border-radius:20px;padding:4px 11px;font-family:inherit;font-size:11.5px;font-weight:700;cursor:pointer;border:1.5px solid #157347;background:#157347;color:#fff;white-space:nowrap;";
-  const inactivePill = "border-radius:20px;padding:4px 11px;font-family:inherit;font-size:11.5px;font-weight:600;cursor:pointer;border:1.5px solid #e4ece8;background:#fafcfb;color:#5a6b63;white-space:nowrap;transition:border-color .12s;";
-
   const statRows = [
     { n: items.length,                label: "Manual",    sub: `${activeManual} ใช้งาน` },
     { n: knowledgeDocs.length,        label: "PDF Docs",  sub: `${activePdf} ใช้งาน` },
@@ -667,82 +663,102 @@ export default function ContextScreen() {
         </div>
       </div>
 
-      {/* ── Toolbar ────────────────────────────────────────────────────────── */}
-      <div style={st("background:#fff;border:1.5px solid #e4ece8;border-radius:12px;padding:12px 14px;margin-bottom:11px;display:flex;flex-direction:column;gap:9px;")}>
+      {/* ── Toolbar — single row ───────────────────────────────────────────── */}
+      <div style={{ background: "#fff", border: "1.5px solid #e4ece8", borderRadius: 12, padding: "10px 14px", marginBottom: 11, display: "flex", alignItems: "center", gap: 8 }}>
 
-        {/* Row 1: Search + Sort + View */}
-        <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-          <div style={{ flex: 1, position: "relative" }}>
-            <span style={st("position:absolute;left:11px;top:50%;transform:translateY(-50%);font-size:13px;color:#9aa8a1;pointer-events:none;")}>🔍</span>
-            <input
-              placeholder="ค้นหาชื่อเอกสาร, ไฟล์, เนื้อหา…"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              style={st("width:100%;box-sizing:border-box;border:1.5px solid #e4ece8;border-radius:9px;padding:8px 32px 8px 34px;font-family:inherit;font-size:12.5px;color:#16241d;outline:none;transition:border-color .15s;")}
-              onFocus={e => e.target.style.borderColor="#2f9e6a"}
-              onBlur={e => e.target.style.borderColor="#e4ece8"}
-            />
-            {search && (
-              <button onClick={() => setSearch("")}
-                style={st("position:absolute;right:9px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:16px;color:#9aa8a1;line-height:1;padding:0;")}>×</button>
-            )}
-          </div>
-          <select value={sortBy} onChange={e => setSortBy(e.target.value)}
-            style={st("border:1.5px solid #e4ece8;border-radius:9px;padding:8px 10px;font-family:inherit;font-size:12px;color:#39473f;background:#fafcfb;cursor:pointer;outline:none;")}>
-            <option value="newest">ล่าสุด</option>
-            <option value="name">ชื่อ A→Z</option>
-            <option value="name_z">ชื่อ Z→A</option>
-            <option value="category">หมวดหมู่</option>
-            <option value="chunks">Chunks มาก→น้อย</option>
-          </select>
-          <div style={st("display:flex;border:1.5px solid #e4ece8;border-radius:9px;overflow:hidden;")}>
-            {[["grid", "⊞"], ["list", "☰"]].map(([v, ic]) => (
-              <button key={v} onClick={() => setViewMode(v)}
-                style={st("background:" + (viewMode === v ? "#157347" : "#fafcfb") + ";color:" + (viewMode === v ? "#fff" : "#7d8e86") + ";border:none;padding:7px 13px;font-size:15px;cursor:pointer;transition:all .15s;")}>
-                {ic}
-              </button>
-            ))}
-          </div>
+        {/* Search */}
+        <div style={{ flex: 1, position: "relative", minWidth: 0 }}>
+          <span style={st("position:absolute;left:11px;top:50%;transform:translateY(-50%);font-size:13px;color:#9aa8a1;pointer-events:none;")}>🔍</span>
+          <input
+            placeholder="ค้นหาชื่อเอกสาร, ไฟล์, เนื้อหา…"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            style={st("width:100%;box-sizing:border-box;border:1.5px solid " + (search ? "#2f9e6a" : "#e4ece8") + ";border-radius:9px;padding:8px 28px 8px 34px;font-family:inherit;font-size:12.5px;color:#16241d;outline:none;transition:border-color .15s;")}
+            onFocus={e => e.target.style.borderColor="#2f9e6a"}
+            onBlur={e => e.target.style.borderColor=search ? "#2f9e6a" : "#e4ece8"}
+          />
+          {search && (
+            <button onClick={() => setSearch("")}
+              style={st("position:absolute;right:9px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:16px;color:#9aa8a1;line-height:1;padding:0;")}>×</button>
+          )}
         </div>
 
-        {/* Row 2: Type + Status */}
-        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-          <span style={st("font-size:10.5px;color:#9aa8a1;font-weight:700;letter-spacing:.3px;min-width:40px;")}>ประเภท</span>
-          {[["all", `ทั้งหมด · ${items.length + knowledgeDocs.length}`], ["manual", `Manual · ${items.length}`], ["pdf", `PDF · ${knowledgeDocs.length}`]].map(([v, l]) => (
-            <button key={v} onClick={() => { setFilterType(v); if (v === "manual") setFilterCat("all"); }}
-              style={st(filterType === v ? activePill : inactivePill)}>{l}</button>
-          ))}
-          <div style={st("width:1px;height:16px;background:#e4ece8;margin:0 2px;")} />
-          <span style={st("font-size:10.5px;color:#9aa8a1;font-weight:700;letter-spacing:.3px;")}>สถานะ</span>
-          {[["all", "ทั้งหมด"], ["active", "● ใช้งาน"], ["inactive", "○ ปิด"]].map(([v, l]) => (
-            <button key={v} onClick={() => setFilterStatus(v)} style={st(filterStatus === v ? activePill : inactivePill)}>{l}</button>
-          ))}
-        </div>
+        {/* Divider */}
+        <div style={st("width:1px;height:22px;background:#e4ece8;flex-shrink:0;")} />
 
-        {/* Row 3: Category chips */}
+        {/* ประเภท dropdown */}
+        <select
+          value={filterType}
+          onChange={e => { setFilterType(e.target.value); if (e.target.value === "manual") setFilterCat("all"); }}
+          style={{
+            border: `1.5px solid ${filterType !== "all" ? "#2f9e6a" : "#e4ece8"}`,
+            borderRadius: 9, padding: "7px 10px", fontFamily: "inherit", fontSize: 12,
+            color: filterType !== "all" ? "#157347" : "#5a6b63",
+            background: filterType !== "all" ? "#f0f7f2" : "#fafcfb",
+            cursor: "pointer", outline: "none", flexShrink: 0,
+          }}>
+          <option value="all">ประเภท · ทั้งหมด ({items.length + knowledgeDocs.length})</option>
+          <option value="manual">ประเภท · Manual ({items.length})</option>
+          <option value="pdf">ประเภท · PDF ({knowledgeDocs.length})</option>
+        </select>
+
+        {/* สถานะ dropdown */}
+        <select
+          value={filterStatus}
+          onChange={e => setFilterStatus(e.target.value)}
+          style={{
+            border: `1.5px solid ${filterStatus !== "all" ? "#2f9e6a" : "#e4ece8"}`,
+            borderRadius: 9, padding: "7px 10px", fontFamily: "inherit", fontSize: 12,
+            color: filterStatus !== "all" ? "#157347" : "#5a6b63",
+            background: filterStatus !== "all" ? "#f0f7f2" : "#fafcfb",
+            cursor: "pointer", outline: "none", flexShrink: 0,
+          }}>
+          <option value="all">สถานะ · ทั้งหมด</option>
+          <option value="active">สถานะ · ใช้งานอยู่</option>
+          <option value="inactive">สถานะ · ปิด</option>
+        </select>
+
+        {/* หมวด dropdown — only meaningful for PDF items */}
         {filterType !== "manual" && visibleCats.length > 0 && (
-          <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-            <span style={st("font-size:10.5px;color:#9aa8a1;font-weight:700;letter-spacing:.3px;min-width:40px;")}>หมวด</span>
-            <button onClick={() => setFilterCat("all")} style={st(filterCat === "all" ? activePill : inactivePill)}>
-              ทั้งหมด · {catCounts.all || 0}
-            </button>
-            {visibleCats.map(c => {
-              const sel = filterCat === c.slug;
-              return (
-                <button key={c.slug} onClick={() => setFilterCat(c.slug)}
-                  style={{
-                    borderRadius: 20, padding: "4px 11px", fontFamily: "inherit", fontSize: 11.5, fontWeight: sel ? 700 : 600,
-                    cursor: "pointer", border: `1.5px solid ${sel ? c.color : "#e4ece8"}`,
-                    background: sel ? c.bgColor : "#fafcfb", color: sel ? c.color : "#5a6b63",
-                    display: "flex", alignItems: "center", gap: 5, whiteSpace: "nowrap", transition: "border-color .12s",
-                  }}>
-                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: c.color, display: "inline-block", flexShrink: 0 }} />
-                  {c.label} · {catCounts[c.slug] || 0}
-                </button>
-              );
-            })}
-          </div>
+          <select
+            value={filterCat}
+            onChange={e => setFilterCat(e.target.value)}
+            style={{
+              border: `1.5px solid ${filterCat !== "all" ? "#2f9e6a" : "#e4ece8"}`,
+              borderRadius: 9, padding: "7px 10px", fontFamily: "inherit", fontSize: 12,
+              color: filterCat !== "all" ? "#157347" : "#5a6b63",
+              background: filterCat !== "all" ? "#f0f7f2" : "#fafcfb",
+              cursor: "pointer", outline: "none", flexShrink: 0,
+            }}>
+            <option value="all">หมวด · ทั้งหมด ({catCounts.all || 0})</option>
+            {visibleCats.map(c => (
+              <option key={c.slug} value={c.slug}>หมวด · {c.label} ({catCounts[c.slug] || 0})</option>
+            ))}
+          </select>
         )}
+
+        {/* Divider */}
+        <div style={st("width:1px;height:22px;background:#e4ece8;flex-shrink:0;")} />
+
+        {/* Sort */}
+        <select value={sortBy} onChange={e => setSortBy(e.target.value)}
+          style={st("border:1.5px solid #e4ece8;border-radius:9px;padding:7px 10px;font-family:inherit;font-size:12px;color:#5a6b63;background:#fafcfb;cursor:pointer;outline:none;flex-shrink:0;")}>
+          <option value="newest">เรียง · ล่าสุด</option>
+          <option value="name">เรียง · ชื่อ A→Z</option>
+          <option value="name_z">เรียง · ชื่อ Z→A</option>
+          <option value="category">เรียง · หมวด</option>
+          <option value="chunks">เรียง · Chunks</option>
+        </select>
+
+        {/* View toggle */}
+        <div style={st("display:flex;border:1.5px solid #e4ece8;border-radius:9px;overflow:hidden;flex-shrink:0;")}>
+          {[["grid", "⊞"], ["list", "☰"]].map(([v, ic]) => (
+            <button key={v} onClick={() => setViewMode(v)}
+              style={st("background:" + (viewMode === v ? "#157347" : "#fafcfb") + ";color:" + (viewMode === v ? "#fff" : "#7d8e86") + ";border:none;padding:7px 12px;font-size:15px;cursor:pointer;transition:all .15s;")}>
+              {ic}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* ── Result bar ─────────────────────────────────────────────────────── */}
