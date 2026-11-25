@@ -369,9 +369,69 @@ function GridView({ items, sortBy, categories, onOpenDoc, onOpenKDoc, onToggleM,
 }
 
 // ─── ListView ─────────────────────────────────────────────────────────────────
-function ListView({ items, categories, onOpenDoc, onOpenKDoc, onToggleM, onToggleK }) {
+// Column layout (fixed widths so header aligns with rows):
+// [icon 42px] [ชื่อเอกสาร flex:1] [ประเภท 100px] [หมวดหมู่ 110px] [ข้อมูล 72px] [สถานะ 92px] [toggle 46px]
+const LIST_COLS = [
+  { key: "name",     label: "ชื่อเอกสาร", flex: true,  sortAsc: "name",     sortDesc: "name_z" },
+  { key: "type",     label: "ประเภท",      width: 100,  sortAsc: null },
+  { key: "category", label: "หมวดหมู่",   width: 110,  sortAsc: "category", sortDesc: null },
+  { key: "data",     label: "ข้อมูล",      width: 72,   sortAsc: "chunks",   sortDesc: null,    align: "right" },
+  { key: "status",   label: "สถานะ",       width: 92,   sortAsc: null,                          align: "right" },
+];
+
+function ListView({ items, categories, sortBy, setSortBy, onOpenDoc, onOpenKDoc, onToggleM, onToggleK }) {
+  const handleColClick = (col) => {
+    if (!col.sortAsc) return;
+    // toggle asc/desc if same column, else go to asc
+    if (sortBy === col.sortAsc && col.sortDesc) setSortBy(col.sortDesc);
+    else setSortBy(col.sortAsc);
+  };
+
+  const sortIcon = (col) => {
+    if (!col.sortAsc) return null;
+    const isAsc = sortBy === col.sortAsc;
+    const isDesc = col.sortDesc && sortBy === col.sortDesc;
+    if (isAsc) return <span style={{ marginLeft: 3, fontSize: 10 }}>↑</span>;
+    if (isDesc) return <span style={{ marginLeft: 3, fontSize: 10 }}>↓</span>;
+    return <span style={{ marginLeft: 3, fontSize: 10, color: "#cdd8d2" }}>⇅</span>;
+  };
+
+  const isColActive = (col) => col.sortAsc && (sortBy === col.sortAsc || sortBy === col.sortDesc);
+
   return (
     <div style={st("background:#fff;border:1.5px solid #e4ece8;border-radius:11px;overflow:hidden;")}>
+      {/* Column headers */}
+      <div style={{ display: "flex", alignItems: "center", padding: "0 16px", background: "#f5f8f6", borderBottom: "1.5px solid #e4ece8" }}>
+        <div style={{ width: 42, flexShrink: 0 }} />
+        {LIST_COLS.map(col => (
+          <div key={col.key}
+            onClick={() => handleColClick(col)}
+            style={{
+              ...(col.flex ? { flex: 1, minWidth: 0 } : { width: col.width, flexShrink: 0 }),
+              textAlign: col.align || "left",
+              padding: "8px 6px",
+              fontSize: 10.5,
+              fontWeight: 700,
+              letterSpacing: ".3px",
+              color: isColActive(col) ? "#157347" : "#8a9e96",
+              cursor: col.sortAsc ? "pointer" : "default",
+              userSelect: "none",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: col.align === "right" ? "flex-end" : "flex-start",
+              gap: 1,
+              transition: "color .12s",
+            }}
+            onMouseEnter={e => { if (col.sortAsc) e.currentTarget.style.color = "#157347"; }}
+            onMouseLeave={e => { e.currentTarget.style.color = isColActive(col) ? "#157347" : "#8a9e96"; }}
+          >
+            {col.label}{sortIcon(col)}
+          </div>
+        ))}
+        <div style={{ width: 46, flexShrink: 0 }} />
+      </div>
+
+      {/* Rows */}
       {items.map((item, i) => {
         const isLast = i === items.length - 1;
         const bdr = isLast ? "none" : "1px solid #f0f4f2";
@@ -381,19 +441,42 @@ function ListView({ items, categories, onOpenDoc, onOpenKDoc, onToggleM, onToggl
           return (
             <div key={`m-${item.id}`}
               onClick={() => onOpenDoc(item)}
-              style={st("display:flex;align-items:center;gap:12px;padding:11px 16px;border-bottom:" + bdr + ";cursor:pointer;transition:background .12s;")}
+              style={{ display: "flex", alignItems: "center", padding: "10px 16px", borderBottom: bdr, cursor: "pointer", transition: "background .12s" }}
               onMouseEnter={e => e.currentTarget.style.background="#f8faf9"}
               onMouseLeave={e => e.currentTarget.style.background="transparent"}
             >
-              <div style={st("width:30px;height:30px;border-radius:7px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:14px;background:" + tp.bg + ";")}>{tp.icon}</div>
-              <div style={{ flex: 1, minWidth: 0 }}>
+              {/* icon */}
+              <div style={{ width: 42, flexShrink: 0, display: "flex", alignItems: "center" }}>
+                <div style={st("width:30px;height:30px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:14px;background:" + tp.bg + ";color:" + tp.color + ";")}>{tp.icon}</div>
+              </div>
+              {/* ชื่อเอกสาร */}
+              <div style={{ flex: 1, minWidth: 0, paddingRight: 10 }}>
                 <div style={st("font-size:13px;font-weight:700;color:#16241d;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;")}>{item.title}</div>
                 <div style={st("font-size:10.5px;color:#9aa8a1;margin-top:1px;")}>{item.meta}</div>
               </div>
-              <span style={st("font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:" + tp.bg + ";color:" + tp.color + ";flex-shrink:0;")}>{tp.label}</span>
-              <span style={st("font-size:9px;padding:1px 6px;border-radius:4px;background:#f0f4f2;color:#8a9e96;flex-shrink:0;")}>manual</span>
-              <span style={st("font-size:10px;font-weight:600;color:" + (item.active ? "#2c7a4f" : "#b0bdb6") + ";flex-shrink:0;min-width:62px;text-align:right;")}>{item.active ? "● ใช้งาน" : "○ ปิด"}</span>
-              <Toggle active={item.active} onClick={e => { e.stopPropagation(); onToggleM(item.id); }} small />
+              {/* ประเภท */}
+              <div style={{ width: 100, flexShrink: 0, paddingRight: 6 }}>
+                <span style={st("font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:" + tp.bg + ";color:" + tp.color + ";")}>{tp.label}</span>
+                <span style={st("font-size:9px;padding:1px 5px;border-radius:4px;background:#f0f4f2;color:#8a9e96;margin-left:4px;")}>manual</span>
+              </div>
+              {/* หมวดหมู่ */}
+              <div style={{ width: 110, flexShrink: 0, paddingRight: 6 }}>
+                <span style={st("font-size:10.5px;color:#b0bdb6;")}>—</span>
+              </div>
+              {/* ข้อมูล */}
+              <div style={{ width: 72, flexShrink: 0, textAlign: "right", paddingRight: 10 }}>
+                <span style={st("font-size:10.5px;color:#9aa8a1;")}>—</span>
+              </div>
+              {/* สถานะ */}
+              <div style={{ width: 92, flexShrink: 0, textAlign: "right", paddingRight: 10 }}>
+                <span style={{ fontSize: 10, fontWeight: 600, color: item.active ? "#2c7a4f" : "#b0bdb6" }}>
+                  {item.active ? "● ใช้งาน" : "○ ปิด"}
+                </span>
+              </div>
+              {/* toggle */}
+              <div style={{ width: 46, flexShrink: 0, display: "flex", justifyContent: "flex-end" }}>
+                <Toggle active={item.active} onClick={e => { e.stopPropagation(); onToggleM(item.id); }} small />
+              </div>
             </div>
           );
         } else {
@@ -401,21 +484,44 @@ function ListView({ items, categories, onOpenDoc, onOpenKDoc, onToggleM, onToggl
           return (
             <div key={`k-${item.id}`}
               onClick={() => onOpenKDoc(item)}
-              style={st("display:flex;align-items:center;gap:12px;padding:11px 16px;border-bottom:" + bdr + ";border-left:3px solid " + ci.color + ";cursor:pointer;transition:background .12s;")}
+              style={{ display: "flex", alignItems: "center", padding: "10px 16px", borderBottom: bdr, borderLeft: `3px solid ${ci.color}`, cursor: "pointer", transition: "background .12s" }}
               onMouseEnter={e => e.currentTarget.style.background="#f8faf9"}
               onMouseLeave={e => e.currentTarget.style.background="transparent"}
             >
-              <div style={st("width:30px;height:30px;border-radius:7px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:14px;background:" + ci.bg + ";")} >📄</div>
-              <div style={{ flex: 1, minWidth: 0 }}>
+              {/* icon */}
+              <div style={{ width: 42, flexShrink: 0, display: "flex", alignItems: "center" }}>
+                <div style={st("width:30px;height:30px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:14px;background:" + ci.bg + ";")} >📄</div>
+              </div>
+              {/* ชื่อเอกสาร */}
+              <div style={{ flex: 1, minWidth: 0, paddingRight: 10 }}>
                 <div style={st("font-size:13px;font-weight:700;color:#16241d;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;")}>{item.title}</div>
                 <div style={st("font-size:10.5px;color:#9aa8a1;margin-top:1px;font-family:'IBM Plex Mono',monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;")}>{item.sourceFile || ""}</div>
               </div>
-              <span style={st("font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:" + ci.bg + ";color:" + ci.color + ";flex-shrink:0;")}>{ci.label}</span>
-              {item.chunkCount != null && (
-                <span style={{ fontSize: 11, fontWeight: 800, color: ci.color, fontFamily: "'IBM Plex Mono', monospace", flexShrink: 0 }}>{item.chunkCount}</span>
-              )}
-              <span style={st("font-size:10px;font-weight:600;color:" + (item.active ? "#2c7a4f" : "#b0bdb6") + ";flex-shrink:0;min-width:62px;text-align:right;")}>{item.active ? "● ใช้งาน" : "○ ปิด"}</span>
-              <Toggle active={item.active} onClick={e => { e.stopPropagation(); onToggleK(item.id); }} small />
+              {/* ประเภท */}
+              <div style={{ width: 100, flexShrink: 0, paddingRight: 6 }}>
+                <span style={st("font-size:9px;padding:1px 5px;border-radius:4px;background:#f0f4f2;color:#8a9e96;")}>PDF</span>
+              </div>
+              {/* หมวดหมู่ */}
+              <div style={{ width: 110, flexShrink: 0, paddingRight: 6 }}>
+                <span style={st("font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:" + ci.bg + ";color:" + ci.color + ";")}>{ci.label}</span>
+              </div>
+              {/* ข้อมูล (chunks) */}
+              <div style={{ width: 72, flexShrink: 0, textAlign: "right", paddingRight: 10 }}>
+                {item.chunkCount != null
+                  ? <span style={{ fontSize: 12, fontWeight: 800, color: ci.color, fontFamily: "'IBM Plex Mono', monospace" }}>{item.chunkCount}</span>
+                  : <span style={st("font-size:10.5px;color:#cdd8d2;")}>—</span>
+                }
+              </div>
+              {/* สถานะ */}
+              <div style={{ width: 92, flexShrink: 0, textAlign: "right", paddingRight: 10 }}>
+                <span style={{ fontSize: 10, fontWeight: 600, color: item.active ? "#2c7a4f" : "#b0bdb6" }}>
+                  {item.active ? "● ใช้งาน" : "○ ปิด"}
+                </span>
+              </div>
+              {/* toggle */}
+              <div style={{ width: 46, flexShrink: 0, display: "flex", justifyContent: "flex-end" }}>
+                <Toggle active={item.active} onClick={e => { e.stopPropagation(); onToggleK(item.id); }} small />
+              </div>
             </div>
           );
         }
@@ -445,7 +551,7 @@ export default function ContextScreen() {
   const [filterCat,    setFilterCat]    = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
   const [sortBy,       setSortBy]       = useState("newest");
-  const [viewMode,     setViewMode]     = useState("grid");
+  const [viewMode,     setViewMode]     = useState("list");
 
   const activeManual   = items.filter(c => c.active).length;
   const activePdf      = knowledgeDocs.filter(d => d.active).length;
@@ -663,6 +769,7 @@ export default function ContextScreen() {
           onToggleM={toggleContext} onToggleK={toggleKnowledgeDoc} />
       ) : (
         <ListView items={filtered} categories={categories}
+          sortBy={sortBy} setSortBy={setSortBy}
           onOpenDoc={setOpenDoc} onOpenKDoc={setOpenKnowledgeDoc}
           onToggleM={toggleContext} onToggleK={toggleKnowledgeDoc} />
       )}
