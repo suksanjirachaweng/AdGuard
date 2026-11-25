@@ -82,11 +82,12 @@ export default function ContextScreen() {
   };
   const activeCount = items.filter((c) => c.active).length;
   const kActiveCount = knowledgeDocs.filter((d) => d.active).length;
+  const totalDocs = knowledgeDocs.reduce((s, d) => s + (d.chunkCount || 0), 0);
   const ctxStats = [
-    { value: String(items.length), label: "รายการบริบททั้งหมด" },
-    { value: String(activeCount), label: "กำลังใช้งาน · active" },
-    { value: String(items.filter((c) => c.type === "banned").length), label: "ชุดคำต้องห้าม" },
-    { value: String(items.filter((c) => c.type === "law" || c.type === "doc").length), label: "อ้างอิงกฎหมาย" },
+    { value: String(items.length), label: "บริบท AI (manual)" },
+    { value: String(activeCount), label: "บริบทใช้งานอยู่" },
+    { value: String(knowledgeDocs.length), label: "เอกสาร PDF" },
+    { value: String(totalDocs), label: "chunks ในฐานความรู้" },
   ];
 
   return (
@@ -109,6 +110,12 @@ export default function ContextScreen() {
         ))}
       </div>
 
+      {/* ── Section: Manual Context ── */}
+      <div style={st("display:flex;align-items:center;gap:10px;margin-bottom:12px;")}>
+        <div style={st("font-size:13px;font-weight:700;color:#16241d;white-space:nowrap;")}>✦ บริบท AI (manual)</div>
+        <div style={st("flex:1;height:1px;background:#e2e9e5;")}></div>
+        <div style={st("font-size:11.5px;color:#7d8e86;white-space:nowrap;")}>{items.length} รายการ · {activeCount} ใช้งานอยู่</div>
+      </div>
       <div style={st("display:grid;grid-template-columns:1fr 1fr;gap:14px;")}>
         {items.map((c) => {
           const tp = ctxTypes[c.type] || ctxTypes.law;
@@ -144,14 +151,13 @@ export default function ContextScreen() {
           );
         })}
       </div>
-      {/* ── Knowledge Docs section ── */}
+      {/* ── Section: Knowledge Docs ── */}
       {knowledgeDocs.length > 0 && (
         <div style={st("margin-top:28px;")}>
-          <div style={st("display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;")}>
-            <div>
-              <div style={st("font-size:14.5px;font-weight:700;color:#16241d;")}>📚 ฐานความรู้ PDF</div>
-              <div style={st("font-size:12px;color:#7d8e86;margin-top:2px;")}>{knowledgeDocs.length} เอกสาร · {kActiveCount} ใช้งานอยู่ · ระบบดึง chunks อัตโนมัติตามหมวดสินค้า</div>
-            </div>
+          <div style={st("display:flex;align-items:center;gap:10px;margin-bottom:12px;")}>
+            <div style={st("font-size:13px;font-weight:700;color:#16241d;white-space:nowrap;")}>📚 ฐานความรู้ PDF</div>
+            <div style={st("flex:1;height:1px;background:#e2e9e5;")}></div>
+            <div style={st("font-size:11.5px;color:#7d8e86;white-space:nowrap;")}>{knowledgeDocs.length} เอกสาร · {kActiveCount} ใช้งานอยู่ · ดึง chunks อัตโนมัติตามหมวดสินค้า</div>
           </div>
           <div style={st("display:grid;grid-template-columns:1fr 1fr;gap:10px;")}>
             {knowledgeDocs.map((doc) => {
