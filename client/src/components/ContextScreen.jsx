@@ -85,7 +85,22 @@ function KnowledgeDocModal({ doc, categories, onClose, onSave, onDelete }) {
   const [busy, setBusy] = useState(false);
   const [delConfirm, setDelConfirm] = useState(false);
   const [error, setError] = useState("");
+  const [showChunks, setShowChunks] = useState(false);
+  const [chunks, setChunks] = useState(null);
+  const [chunksLoading, setChunksLoading] = useState(false);
   const dirty = title !== doc.title || category !== doc.category;
+
+  const loadChunks = async () => {
+    if (chunks !== null) { setShowChunks((v) => !v); return; }
+    setChunksLoading(true);
+    try {
+      const r = await fetch(`/api/knowledge/docs/${doc.id}/chunks`);
+      const d = await r.json();
+      setChunks(d.chunks || []);
+      setShowChunks(true);
+    } catch { setChunks([]); setShowChunks(true); }
+    finally { setChunksLoading(false); }
+  };
 
   const handleSave = async () => {
     if (!title.trim()) return setError("ชื่อเอกสารห้ามว่าง");
@@ -114,16 +129,16 @@ function KnowledgeDocModal({ doc, categories, onClose, onSave, onDelete }) {
 
   return (
     <div onClick={onClose} style={st("position:fixed;inset:0;background:rgba(10,30,22,.55);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;z-index:70;padding:24px;")}>
-      <div onClick={(e) => e.stopPropagation()} style={st("background:#fff;border-radius:16px;width:560px;max-width:100%;display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(0,0,0,.3);animation:fadeUp .3s ease;")}>
+      <div onClick={(e) => e.stopPropagation()} style={st("background:#fff;border-radius:16px;width:560px;max-width:100%;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(0,0,0,.3);animation:fadeUp .3s ease;")}>
         {/* Header */}
-        <div style={st("padding:20px 24px;border-bottom:1px solid #eef2f0;display:flex;align-items:center;gap:12px;")}>
+        <div style={st("padding:20px 24px;border-bottom:1px solid #eef2f0;display:flex;align-items:center;gap:12px;flex-shrink:0;")}>
           <div style={st("width:38px;height:38px;border-radius:10px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:18px;background:" + ci.bg + ";")}>📄</div>
           <div style={st("flex:1;font-size:15px;font-weight:700;color:#16241d;")}>แก้ไขเอกสาร PDF</div>
           <button onClick={onClose} style={st("background:none;border:none;font-size:22px;color:#9aa8a1;cursor:pointer;line-height:1;")}>×</button>
         </div>
 
         {/* Body */}
-        <div style={st("padding:22px 24px;display:flex;flex-direction:column;gap:18px;")}>
+        <div style={st("padding:22px 24px;display:flex;flex-direction:column;gap:18px;overflow-y:auto;flex:1;")}>
           {/* Title field */}
           <div>
             <label style={st("display:block;font-size:12px;font-weight:600;color:#5a6b63;margin-bottom:7px;")}>ชื่อเอกสาร</label>
@@ -162,6 +177,34 @@ function KnowledgeDocModal({ doc, categories, onClose, onSave, onDelete }) {
               <div style={st("font-size:11px;font-weight:600;color:#9aa8a1;margin-bottom:3px;")}>Chunks</div>
               <div style={st("font-size:14px;font-weight:700;color:#16241d;font-family:'IBM Plex Mono',monospace;")}>{doc.chunkCount ?? "—"}</div>
             </div>
+          </div>
+
+          {/* Chunks viewer toggle */}
+          <div>
+            <button onClick={loadChunks} disabled={chunksLoading}
+              style={st("display:flex;align-items:center;gap:7px;background:#f0f7f0;border:1px solid #c5dfc8;border-radius:9px;padding:9px 14px;font-family:inherit;font-size:12.5px;font-weight:600;color:#157347;cursor:pointer;width:100%;")}>
+              <span>{showChunks ? "▾" : "▸"}</span>
+              <span>{chunksLoading ? "กำลังโหลด…" : `📋 ดู Text Chunks (${doc.chunkCount ?? "?"})`}</span>
+            </button>
+            {showChunks && chunks && (
+              <div style={st("margin-top:8px;border:1px solid #e2e9e5;border-radius:9px;overflow:hidden;")}>
+                {chunks.length === 0
+                  ? <div style={st("padding:16px;text-align:center;color:#9aa8a1;font-size:13px;")}>ไม่พบ chunks</div>
+                  : (
+                    <div style={st("max-height:320px;overflow-y:auto;")}>
+                      {chunks.map((c, i) => (
+                        <div key={c.id} style={st("padding:12px 14px;border-bottom:" + (i < chunks.length - 1 ? "1px solid #f0f4f2" : "none") + ";")}>
+                          <div style={st("font-size:10.5px;font-weight:700;color:#9aa8a1;font-family:'IBM Plex Mono',monospace;margin-bottom:5px;")}>
+                            chunk #{c.idx + 1} · {c.content.length} chars
+                          </div>
+                          <div style={st("font-size:12px;color:#39473f;line-height:1.65;white-space:pre-wrap;")}>{c.content}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )
+                }
+              </div>
+            )}
           </div>
 
           {error && <div style={st("color:#c0392b;font-size:12px;background:#fdecea;padding:9px 12px;border-radius:8px;")}>⚠ {error}</div>}

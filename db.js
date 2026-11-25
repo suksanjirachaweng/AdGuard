@@ -588,6 +588,14 @@ export async function deleteKnowledgeDoc(id) {
   return rowCount > 0;
 }
 
+export async function getDocChunks(docId) {
+  const { rows } = await pool.query(
+    "SELECT id, chunk_idx, content FROM knowledge_chunks WHERE doc_id=$1 ORDER BY chunk_idx",
+    [docId]
+  );
+  return rows.map((r) => ({ id: r.id, idx: r.chunk_idx, content: r.content }));
+}
+
 // ----- knowledge_categories (dynamic, DB-backed) --------------------------
 const mapCategory = (r) => ({
   id: r.id, slug: r.slug, label: r.label,

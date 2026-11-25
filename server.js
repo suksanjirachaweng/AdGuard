@@ -603,6 +603,10 @@ app.delete("/api/knowledge/docs/:id", requireAuth, requireAdmin, wrap(async (req
   if (!ok) return res.status(404).json({ error: "ไม่พบเอกสาร" });
   res.json({ ok: true });
 }));
+app.get("/api/knowledge/docs/:id/chunks", requireAuth, wrap(async (req, res) => {
+  const chunks = await store.getDocChunks(Number(req.params.id));
+  res.json({ chunks });
+}));
 
 // ---- Knowledge base: categories (dynamic, DB-backed) ---------------------
 app.get("/api/knowledge/categories", requireAuth, wrap(async (_req, res) => {
