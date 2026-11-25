@@ -32,6 +32,7 @@ const initialState = {
   caseFilter: "all",
   // context
   contextItems: FALLBACK_CONTEXT,
+  knowledgeDocs: [],
   showAddContext: false,
   draftType: "law",
   draftTitle: "",
@@ -102,6 +103,24 @@ export function AppProvider({ children }) {
       if (!r.ok) return;
       const d = await r.json();
       set({ contextItems: d.items });
+    } catch { /* offline */ }
+  }, [set]);
+
+  const loadKnowledgeDocs = useCallback(async () => {
+    try {
+      const r = await fetch("/api/knowledge/docs");
+      if (!r.ok) return;
+      const d = await r.json();
+      set({ knowledgeDocs: d.docs || [] });
+    } catch { /* offline */ }
+  }, [set]);
+
+  const toggleKnowledgeDoc = useCallback(async (id) => {
+    try {
+      const r = await fetch(`/api/knowledge/docs/${id}/toggle`, { method: "PATCH" });
+      if (!r.ok) return;
+      const updated = await r.json();
+      set((s) => ({ knowledgeDocs: s.knowledgeDocs.map((d) => d.id === id ? { ...d, active: updated.active } : d) }));
     } catch { /* offline */ }
   }, [set]);
 
@@ -293,7 +312,7 @@ export function AppProvider({ children }) {
   }, [set, state.contextItems]);
 
   // ---- auth ----
-  const loadAppData = useCallback(() => { loadCases(); loadContext(); }, [loadCases, loadContext]);
+  const loadAppData = useCallback(() => { loadCases(); loadContext(); loadKnowledgeDocs(); }, [loadCases, loadContext, loadKnowledgeDocs]);
 
   const checkAuth = useCallback(async () => {
     try {
@@ -498,6 +517,7 @@ export function AppProvider({ children }) {
 
   const api = { state, set, go, loadCases, loadContext, openCase, ensureCase, setFilter, onFileChosen, analyze,
     toggleAgency, send, resetHandoff, openAddContext, closeAddContext, saveContext, toggleContext, setDraftFile, deleteContext, attachContextFile,
+    loadKnowledgeDocs, toggleKnowledgeDoc,
     checkAuth, login, logout, deleteCase, setVerdict,
     loadUsers, createUserAdmin, updateUserAdmin, deleteUserAdmin, resetPasswordAdmin,
     loadLeads, createLead, discardLead, deleteLead, promoteLead, runDiscovery, collectLead,

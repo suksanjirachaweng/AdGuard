@@ -508,10 +508,15 @@ export async function searchAlertsForContext(keywords, limit = 5) {
 
 // ----- knowledge docs + chunks -------------------------------------------
 export async function listKnowledgeDocs({ category } = {}) {
+  const base = `
+    SELECT kd.*, COUNT(kc.id)::int AS chunk_count
+    FROM knowledge_docs kd
+    LEFT JOIN knowledge_chunks kc ON kc.doc_id = kd.id
+  `;
   const { rows } = category
-    ? await pool.query("SELECT * FROM knowledge_docs WHERE category=$1 ORDER BY created_at DESC", [category])
-    : await pool.query("SELECT * FROM knowledge_docs ORDER BY category, created_at DESC");
-  return rows.map(mapKnowledgeDoc);
+    ? await pool.query(base + "WHERE kd.category=$1 GROUP BY kd.id ORDER BY kd.created_at DESC", [category])
+    : await pool.query(base + "GROUP BY kd.id ORDER BY kd.category, kd.created_at DESC");
+  return rows.map((r) => ({ ...mapKnowledgeDoc(r), chunkCount: r.chunk_count }));
 }
 
 export async function insertKnowledgeDoc({ category, docType, title, sourceFile, priority = "normal" }) {

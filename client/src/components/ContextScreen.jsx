@@ -62,9 +62,14 @@ function DocModal({ item, onClose, onDelete, onAttach }) {
   );
 }
 
+const CAT_LABEL = { food: "อาหาร", drug: "ยา", cosmetic: "เครื่องสำอาง", herbal: "สมุนไพร", medical_device: "เครื่องมือแพทย์", hazardous: "วัตถุอันตราย", general: "ทั่วไป" };
+const CAT_COLOR = { food: "#16743c", drug: "#1a5fa8", cosmetic: "#7b2fbe", herbal: "#2d7d44", medical_device: "#b06000", hazardous: "#c0392b", general: "#6b7d75" };
+const CAT_BG   = { food: "#e8f5e9", drug: "#e3f2fd", cosmetic: "#f3e8ff", herbal: "#e8f5e9", medical_device: "#fff3e0", hazardous: "#fdecea", general: "#eef2f0" };
+
 export default function ContextScreen() {
-  const { state, openAddContext, toggleContext, deleteContext, attachContextFile } = useApp();
+  const { state, openAddContext, toggleContext, deleteContext, attachContextFile, toggleKnowledgeDoc } = useApp();
   const items = state.contextItems;
+  const knowledgeDocs = state.knowledgeDocs || [];
   const [openDoc, setOpenDoc] = useState(null);
 
   const handleDelete = async (item) => {
@@ -76,6 +81,7 @@ export default function ContextScreen() {
     setOpenDoc((cur) => (cur && cur.id === id ? { ...cur, ...updated } : cur));
   };
   const activeCount = items.filter((c) => c.active).length;
+  const kActiveCount = knowledgeDocs.filter((d) => d.active).length;
   const ctxStats = [
     { value: String(items.length), label: "รายการบริบททั้งหมด" },
     { value: String(activeCount), label: "กำลังใช้งาน · active" },
@@ -138,6 +144,41 @@ export default function ContextScreen() {
           );
         })}
       </div>
+      {/* ── Knowledge Docs section ── */}
+      {knowledgeDocs.length > 0 && (
+        <div style={st("margin-top:28px;")}>
+          <div style={st("display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;")}>
+            <div>
+              <div style={st("font-size:14.5px;font-weight:700;color:#16241d;")}>📚 ฐานความรู้ PDF</div>
+              <div style={st("font-size:12px;color:#7d8e86;margin-top:2px;")}>{knowledgeDocs.length} เอกสาร · {kActiveCount} ใช้งานอยู่ · ระบบดึง chunks อัตโนมัติตามหมวดสินค้า</div>
+            </div>
+          </div>
+          <div style={st("display:grid;grid-template-columns:1fr 1fr;gap:10px;")}>
+            {knowledgeDocs.map((doc) => {
+              const cat = doc.category || "general";
+              const color = CAT_COLOR[cat] || "#6b7d75";
+              const bg    = CAT_BG[cat]    || "#eef2f0";
+              const label = CAT_LABEL[cat] || cat;
+              const tog = "position:relative;width:38px;height:21px;border-radius:11px;border:none;cursor:pointer;flex-shrink:0;transition:background .2s;background:" + (doc.active ? "#2f9e6a" : "#cdd8d2") + ";";
+              const knob = "position:absolute;top:3px;left:" + (doc.active ? "19px" : "3px") + ";width:15px;height:15px;border-radius:50%;background:#fff;transition:left .2s;box-shadow:0 1px 2px rgba(0,0,0,.2);";
+              return (
+                <div key={doc.id} style={st("background:#fff;border:1px solid #e2e9e5;border-radius:11px;padding:14px 16px;display:flex;align-items:flex-start;gap:12px;")}>
+                  <div style={st("flex:1;min-width:0;")}>
+                    <div style={st("display:flex;align-items:center;gap:7px;margin-bottom:5px;flex-wrap:wrap;")}>
+                      <span style={st("font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:5px;background:" + bg + ";color:" + color + ";")}>{label}</span>
+                      <span style={st("font-size:10px;color:#9aa8a1;")}>{doc.doc_type || "manual"}</span>
+                    </div>
+                    <div style={st("font-size:13px;font-weight:600;color:#16241d;line-height:1.35;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;")} title={doc.title}>{doc.title}</div>
+                    <div style={st("font-size:11px;color:#9aa8a1;margin-top:4px;font-family:'IBM Plex Mono',monospace;")}>{doc.chunkCount != null ? `${doc.chunkCount} chunks` : ""}</div>
+                  </div>
+                  <button onClick={() => toggleKnowledgeDoc(doc.id)} style={st(tog)}><span style={st(knob)}></span></button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {openDoc && <DocModal item={openDoc} onClose={() => setOpenDoc(null)} onDelete={handleDelete} onAttach={handleAttach} />}
     </div>
   );
