@@ -54,6 +54,16 @@ const SUBFOLDER_TO_DOCTYPE = {
   "00_ทั่วไป":           "guideline",
 };
 
+// Sub-folder → category override (overrides parent folder's category)
+const SUBFOLDER_TO_CATEGORY = {
+  "โฆษณาอาหาร":          "food",
+  "โฆษณายา":             "drug",
+  "โฆษณาผลิตภัณฑ์สมุนไพร": "herbal",
+  "โฆษณาวัตถุอันตราย":   "hazardous",
+  "โฆษณาเครื่องมือแพทย์": "medical_device",
+  "โฆษณาเครื่องสำอาง":   "cosmetic",
+};
+
 // ── Chunk text ─────────────────────────────────────────────────────────────
 const CHUNK_SIZE = 500;
 const CHUNK_OVERLAP = 50;
@@ -88,7 +98,8 @@ function collectPdfs(baseDir, category) {
       if (stat.isDirectory()) walk(full, name);
       else if (extname(name).toLowerCase() === ".pdf") {
         const docType = SUBFOLDER_TO_DOCTYPE[subfolder] || "manual";
-        files.push({ path: full, name, category, docType });
+        const effectiveCategory = SUBFOLDER_TO_CATEGORY[subfolder] || category;
+        files.push({ path: full, name, category: effectiveCategory, docType });
       }
     }
   }
