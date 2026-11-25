@@ -241,7 +241,7 @@ function ManualCard({ item, onOpen, onToggle }) {
         borderRadius: 11,
         padding: "14px 15px",
         display: "flex", flexDirection: "column", gap: 9,
-        cursor: "pointer",
+        cursor: "pointer", minWidth: 0,
         transition: "border-color .15s, box-shadow .15s",
         boxShadow: hov ? "0 4px 14px rgba(0,0,0,.07)" : "0 1px 3px rgba(0,0,0,.04)",
       }}
@@ -298,7 +298,7 @@ function PdfCard({ doc, categories, onOpen, onToggle }) {
         borderRadius: 11,
         padding: "14px 15px",
         display: "flex", flexDirection: "column", gap: 9,
-        cursor: "pointer",
+        cursor: "pointer", minWidth: 0,
         transition: "border-color .15s, box-shadow .15s",
         boxShadow: hov ? "0 4px 14px rgba(0,0,0,.07)" : "0 1px 3px rgba(0,0,0,.04)",
       }}
@@ -365,7 +365,7 @@ function GridView({ items, sortBy, categories, onOpenDoc, onOpenKDoc, onToggleM,
     }
   });
 
-  return <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 11 }}>{els}</div>;
+  return <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 11 }}>{els}</div>;
 }
 
 // ─── ListView ─────────────────────────────────────────────────────────────────
