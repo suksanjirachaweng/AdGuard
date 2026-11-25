@@ -143,6 +143,32 @@ export async function init() {
   await pool.query("ALTER TABLE context_items ADD COLUMN IF NOT EXISTS category text DEFAULT 'general'");
   await pool.query("ALTER TABLE context_items ADD COLUMN IF NOT EXISTS priority text DEFAULT 'normal'");
 
+  // ---- Phase 5: Dynamic knowledge categories with parent/child hierarchy ---
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS knowledge_categories (
+      id         serial PRIMARY KEY,
+      slug       text UNIQUE NOT NULL,
+      label      text NOT NULL,
+      parent_id  integer REFERENCES knowledge_categories(id) ON DELETE SET NULL,
+      color      text NOT NULL DEFAULT '#6b7d75',
+      bg_color   text NOT NULL DEFAULT '#eef2f0',
+      sort_order integer DEFAULT 0,
+      created_at timestamptz DEFAULT now()
+    );
+  `);
+  // Seed the 7 built-in categories (slug is immutable; only label/color are editable)
+  await pool.query(`
+    INSERT INTO knowledge_categories (slug, label, color, bg_color, sort_order) VALUES
+      ('food',           'อาหาร',              '#16743c', '#e8f5e9', 1),
+      ('drug',           'ยา',                 '#1a5fa8', '#e3f2fd', 2),
+      ('cosmetic',       'เครื่องสำอาง',       '#7b2fbe', '#f3e8ff', 3),
+      ('herbal',         'สมุนไพร',            '#2d7d44', '#e8f5e9', 4),
+      ('medical_device', 'เครื่องมือแพทย์',   '#b06000', '#fff3e0', 5),
+      ('hazardous',      'วัตถุอันตราย',       '#c0392b', '#fdecea', 6),
+      ('general',        'ทั่วไป',             '#6b7d75', '#eef2f0', 7)
+    ON CONFLICT (slug) DO NOTHING;
+  `);
+
   // Seed a first admin so you can log in immediately. Credentials come from env
   // (ADMIN_EMAIL / ADMIN_PASSWORD); the defaults are dev-only — change them.
   const { rows: [uc] } = await pool.query("SELECT COUNT(*)::int AS n FROM users");
@@ -559,6 +585,78 @@ export async function updateKnowledgeDoc(id, { title, category }) {
 
 export async function deleteKnowledgeDoc(id) {
   const { rowCount } = await pool.query("DELETE FROM knowledge_docs WHERE id=$1", [id]);
+  return rowCount > 0;
+}
+
+// ----- knowledge_categories (dynamic, DB-backed) --------------------------
+const mapCategory = (r) => ({
+  id: r.id, slug: r.slug, label: r.label,
+  parentId: r.parent_id || null, color: r.color, bgColor: r.bg_color,
+  sortOrder: r.sort_order, createdAt: r.created_at,
+  docCount: r.doc_count != null ? r.doc_count : undefined,
+});
+
+export async function listCategories() {
+  const { rows } = await pool.query(`
+    SELECT kc.*, COUNT(kd.id)::int AS doc_count
+    FROM knowledge_categories kc
+    LEFT JOIN knowledge_docs kd ON kd.category = kc.slug
+    GROUP BY kc.id
+    ORDER BY kc.sort_order, kc.label
+  `);
+  return rows.map(mapCategory);
+}
+
+export async function createCategory({ label, parentId = null, color = '#6b7d75', bgColor = '#eef2f0' }) {
+  const slug = 'cat_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 5);
+  const { rows: siblings } = await pool.query(
+    'SELECT MAX(sort_order) AS m FROM knowledge_categories WHERE parent_id IS NOT DISTINCT FROM $1',
+    [parentId || null]
+  );
+  const sortOrder = (siblings[0]?.m ?? 0) + 1;
+  const { rows } = await pool.query(
+    `INSERT INTO knowledge_categories (slug, label, parent_id, color, bg_color, sort_order)
+     VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+    [slug, label, parentId || null, color, bgColor, sortOrder]
+  );
+  return mapCategory(rows[0]);
+}
+
+export async function updateCategory(id, { label, color, bgColor, parentId, sortOrder }) {
+  const fields = [], vals = [];
+  if (label !== undefined)     { fields.push(`label=$${fields.length+1}`);      vals.push(label); }
+  if (color !== undefined)     { fields.push(`color=$${fields.length+1}`);      vals.push(color); }
+  if (bgColor !== undefined)   { fields.push(`bg_color=$${fields.length+1}`);   vals.push(bgColor); }
+  if (parentId !== undefined)  { fields.push(`parent_id=$${fields.length+1}`);  vals.push(parentId || null); }
+  if (sortOrder !== undefined) { fields.push(`sort_order=$${fields.length+1}`); vals.push(sortOrder); }
+  if (!fields.length) return null;
+  vals.push(id);
+  const { rows } = await pool.query(
+    `UPDATE knowledge_categories SET ${fields.join(',')} WHERE id=$${vals.length} RETURNING *`, vals
+  );
+  return rows[0] ? mapCategory(rows[0]) : null;
+}
+
+export async function deleteCategory(id) {
+  // Reassign docs in this category to the parent category's slug (or 'general')
+  const { rows: cat } = await pool.query(
+    'SELECT slug, parent_id FROM knowledge_categories WHERE id=$1', [id]
+  );
+  if (!cat[0]) return false;
+  let fallbackSlug = 'general';
+  if (cat[0].parent_id) {
+    const { rows: parent } = await pool.query(
+      'SELECT slug FROM knowledge_categories WHERE id=$1', [cat[0].parent_id]
+    );
+    if (parent[0]) fallbackSlug = parent[0].slug;
+  }
+  await pool.query('UPDATE knowledge_docs SET category=$1 WHERE category=$2', [fallbackSlug, cat[0].slug]);
+  // Move sub-categories up to parent
+  await pool.query(
+    'UPDATE knowledge_categories SET parent_id=$1 WHERE parent_id=$2',
+    [cat[0].parent_id || null, id]
+  );
+  const { rowCount } = await pool.query('DELETE FROM knowledge_categories WHERE id=$1', [id]);
   return rowCount > 0;
 }
 

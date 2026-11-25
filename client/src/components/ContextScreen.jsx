@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { st } from "../lib/st.js";
 import { ctxTypes } from "../lib/data.js";
 import { useApp } from "../store.jsx";
+import CategoryManagerModal from "./CategoryManagerModal.jsx";
 
 const BODY_PREVIEW_LEN = 220;
 // Items whose body is still short are most likely stub seed descriptions
@@ -62,12 +63,23 @@ function DocModal({ item, onClose, onDelete, onAttach }) {
   );
 }
 
-const CAT_LABEL = { food: "อาหาร", drug: "ยา", cosmetic: "เครื่องสำอาง", herbal: "สมุนไพร", medical_device: "เครื่องมือแพทย์", hazardous: "วัตถุอันตราย", general: "ทั่วไป" };
-const CAT_COLOR = { food: "#16743c", drug: "#1a5fa8", cosmetic: "#7b2fbe", herbal: "#2d7d44", medical_device: "#b06000", hazardous: "#c0392b", general: "#6b7d75" };
-const CAT_BG   = { food: "#e8f5e9", drug: "#e3f2fd", cosmetic: "#f3e8ff", herbal: "#e8f5e9", medical_device: "#fff3e0", hazardous: "#fdecea", general: "#eef2f0" };
-const CAT_OPTIONS = ["food","drug","cosmetic","herbal","medical_device","hazardous","general"];
+// Fallback static maps (used only until categories load from API)
+const CAT_FALLBACK = {
+  food: { label: "อาหาร", color: "#16743c", bg: "#e8f5e9" },
+  drug: { label: "ยา", color: "#1a5fa8", bg: "#e3f2fd" },
+  cosmetic: { label: "เครื่องสำอาง", color: "#7b2fbe", bg: "#f3e8ff" },
+  herbal: { label: "สมุนไพร", color: "#2d7d44", bg: "#e8f5e9" },
+  medical_device: { label: "เครื่องมือแพทย์", color: "#b06000", bg: "#fff3e0" },
+  hazardous: { label: "วัตถุอันตราย", color: "#c0392b", bg: "#fdecea" },
+  general: { label: "ทั่วไป", color: "#6b7d75", bg: "#eef2f0" },
+};
+function catInfo(slug, categories) {
+  const found = categories.find((c) => c.slug === slug);
+  if (found) return { label: found.label, color: found.color, bg: found.bgColor };
+  return CAT_FALLBACK[slug] || CAT_FALLBACK.general;
+}
 
-function KnowledgeDocModal({ doc, onClose, onSave, onDelete }) {
+function KnowledgeDocModal({ doc, categories, onClose, onSave, onDelete }) {
   const [title, setTitle] = useState(doc.title);
   const [category, setCategory] = useState(doc.category || "general");
   const [busy, setBusy] = useState(false);
@@ -89,16 +101,23 @@ function KnowledgeDocModal({ doc, onClose, onSave, onDelete }) {
     catch (e) { setError(e.message); setBusy(false); }
   };
 
-  const cat = category || "general";
-  const color = CAT_COLOR[cat] || "#6b7d75";
-  const bg    = CAT_BG[cat]    || "#eef2f0";
+  const ci = catInfo(category, categories);
+
+  // Build flat ordered list from categories tree for the picker
+  function flatTree(cats, parentId = null, depth = 0) {
+    return cats
+      .filter((c) => (c.parentId || null) === parentId)
+      .sort((a, b) => a.sortOrder - b.sortOrder || a.label.localeCompare(b.label))
+      .flatMap((c) => [{ ...c, depth }, ...flatTree(cats, c.id, depth + 1)]);
+  }
+  const flatCats = categories.length > 0 ? flatTree(categories) : Object.entries(CAT_FALLBACK).map(([slug, v], i) => ({ id: slug, slug, label: v.label, color: v.color, bgColor: v.bg, depth: 0, sortOrder: i }));
 
   return (
     <div onClick={onClose} style={st("position:fixed;inset:0;background:rgba(10,30,22,.55);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;z-index:70;padding:24px;")}>
       <div onClick={(e) => e.stopPropagation()} style={st("background:#fff;border-radius:16px;width:560px;max-width:100%;display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(0,0,0,.3);animation:fadeUp .3s ease;")}>
         {/* Header */}
         <div style={st("padding:20px 24px;border-bottom:1px solid #eef2f0;display:flex;align-items:center;gap:12px;")}>
-          <div style={st("width:38px;height:38px;border-radius:10px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:18px;background:" + bg + ";")}>📄</div>
+          <div style={st("width:38px;height:38px;border-radius:10px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:18px;background:" + ci.bg + ";")}>📄</div>
           <div style={st("flex:1;font-size:15px;font-weight:700;color:#16241d;")}>แก้ไขเอกสาร PDF</div>
           <button onClick={onClose} style={st("background:none;border:none;font-size:22px;color:#9aa8a1;cursor:pointer;line-height:1;")}>×</button>
         </div>
@@ -114,17 +133,19 @@ function KnowledgeDocModal({ doc, onClose, onSave, onDelete }) {
               onBlur={(e) => e.target.style.borderColor="#d0dbd4"} />
           </div>
 
-          {/* Category selector */}
+          {/* Category selector — dynamic tree */}
           <div>
             <label style={st("display:block;font-size:12px;font-weight:600;color:#5a6b63;margin-bottom:7px;")}>หมวดหมู่สินค้า</label>
-            <div style={st("display:grid;grid-template-columns:repeat(4,1fr);gap:8px;")}>
-              {CAT_OPTIONS.map((c) => {
-                const sel = category === c;
-                const cc = CAT_COLOR[c], cb = CAT_BG[c];
+            <div style={st("display:flex;flex-wrap:wrap;gap:7px;max-height:140px;overflow-y:auto;")}>
+              {flatCats.map((c) => {
+                const sel = category === c.slug;
                 return (
-                  <button key={c} onClick={() => setCategory(c)}
-                    style={st("border-radius:8px;padding:8px 6px;font-family:inherit;font-size:11.5px;font-weight:600;cursor:pointer;transition:all .15s;border:1.5px solid " + (sel ? cc : "#e2e9e5") + ";background:" + (sel ? cb : "#fafcfb") + ";color:" + (sel ? cc : "#7d8e86") + ";")}>
-                    {CAT_LABEL[c]}
+                  <button key={c.id} onClick={() => setCategory(c.slug)}
+                    style={st("border-radius:8px;padding:6px 10px;font-family:inherit;font-size:11.5px;font-weight:600;cursor:pointer;transition:all .15s;border:1.5px solid " + (sel ? c.color : "#e2e9e5") + ";background:" + (sel ? c.bgColor : "#fafcfb") + ";color:" + (sel ? c.color : "#7d8e86") + ";display:flex;align-items:center;gap:5px;")}
+                  >
+                    {c.depth > 0 && <span style={{ opacity: 0.4, fontSize: 10 }}>{"└".padStart(c.depth, "·")}</span>}
+                    <span style={{ width: 8, height: 8, borderRadius: "50%", background: c.color, display: "inline-block", flexShrink: 0 }} />
+                    {c.label}
                   </button>
                 );
               })}
@@ -172,11 +193,13 @@ function KnowledgeDocModal({ doc, onClose, onSave, onDelete }) {
 }
 
 export default function ContextScreen() {
-  const { state, openAddContext, toggleContext, deleteContext, attachContextFile, toggleKnowledgeDoc, updateKnowledgeDoc, deleteKnowledgeDoc } = useApp();
+  const { state, openAddContext, toggleContext, deleteContext, attachContextFile, toggleKnowledgeDoc, updateKnowledgeDoc, deleteKnowledgeDoc, createCategory, updateCategory, deleteCategory } = useApp();
   const items = state.contextItems;
   const knowledgeDocs = state.knowledgeDocs || [];
+  const categories = state.categories || [];
   const [openDoc, setOpenDoc] = useState(null);
   const [openKnowledgeDoc, setOpenKnowledgeDoc] = useState(null);
+  const [showCategoryManager, setShowCategoryManager] = useState(false);
 
   const handleDelete = async (item) => {
     setOpenDoc(null);
@@ -204,7 +227,10 @@ export default function ContextScreen() {
           <div style={st("font-size:16px;font-weight:700;margin-bottom:4px;")}>ฐานความรู้และบริบทสำหรับ AI</div>
           <div style={st("font-size:12.5px;color:#bcd6c8;line-height:1.6;")}>เพิ่มกฎหมาย ประกาศ กฎเกณฑ์ภายใน หรือรายการคำต้องห้าม เพื่อให้ AI ใช้เป็นบริบทประกอบการวิเคราะห์โฆษณาในอนาคต — ยิ่งมีบริบทมาก ผลวิเคราะห์ยิ่งแม่นยำและอ้างอิงได้</div>
         </div>
-        <button className="h-green" onClick={openAddContext} style={st("display:flex;align-items:center;gap:8px;background:#2f9e6a;color:#fff;border:none;border-radius:10px;padding:12px 20px;font-family:inherit;font-size:13.5px;font-weight:600;cursor:pointer;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.25);")}>＋ เพิ่มบริบท</button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={() => setShowCategoryManager(true)} style={st("display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.12);color:#cde8da;border:1px solid rgba(255,255,255,.2);border-radius:10px;padding:10px 16px;font-family:inherit;font-size:12.5px;font-weight:600;cursor:pointer;white-space:nowrap;")}>📂 จัดการหมวดหมู่</button>
+          <button className="h-green" onClick={openAddContext} style={st("display:flex;align-items:center;gap:8px;background:#2f9e6a;color:#fff;border:none;border-radius:10px;padding:12px 20px;font-family:inherit;font-size:13.5px;font-weight:600;cursor:pointer;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.25);")}>＋ เพิ่มบริบท</button>
+        </div>
       </div>
 
       <div className="stat-grid" style={st("display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px;")}>
@@ -259,10 +285,10 @@ export default function ContextScreen() {
 
         {/* Knowledge PDF docs — same grid, visually distinct by left accent bar */}
         {knowledgeDocs.map((doc) => {
-          const cat = doc.category || "general";
-          const color = CAT_COLOR[cat] || "#6b7d75";
-          const bg    = CAT_BG[cat]    || "#eef2f0";
-          const label = CAT_LABEL[cat] || cat;
+          const ci = catInfo(doc.category || "general", categories);
+          const color = ci.color;
+          const bg    = ci.bg;
+          const label = ci.label;
           const tog = "position:relative;width:40px;height:23px;border-radius:13px;border:none;cursor:pointer;flex-shrink:0;transition:background .2s;background:" + (doc.active ? "#2f9e6a" : "#cdd8d2") + ";";
           const knob = "position:absolute;top:3px;left:" + (doc.active ? "20px" : "3px") + ";width:17px;height:17px;border-radius:50%;background:#fff;transition:left .2s;box-shadow:0 1px 2px rgba(0,0,0,.2);";
           const stStyle = "font-size:11px;font-weight:600;color:" + (doc.active ? "#2c7a4f" : "#9aa8a1") + ";";
@@ -297,9 +323,19 @@ export default function ContextScreen() {
       {openKnowledgeDoc && (
         <KnowledgeDocModal
           doc={openKnowledgeDoc}
+          categories={categories}
           onClose={() => setOpenKnowledgeDoc(null)}
           onSave={updateKnowledgeDoc}
           onDelete={deleteKnowledgeDoc}
+        />
+      )}
+      {showCategoryManager && (
+        <CategoryManagerModal
+          categories={categories}
+          onCreate={createCategory}
+          onUpdate={updateCategory}
+          onDelete={deleteCategory}
+          onClose={() => setShowCategoryManager(false)}
         />
       )}
     </div>

@@ -55,6 +55,8 @@ const initialState = {
   leadBusyId: null,
   discoveryRunning: false,
   discoveryError: "",
+  // knowledge base categories (dynamic)
+  categories: [],
   // knowledge base (FDA alerts)
   alerts: [],
   alertsTotal: 0,
@@ -114,6 +116,43 @@ export function AppProvider({ children }) {
       set({ knowledgeDocs: d.docs || [] });
     } catch { /* offline */ }
   }, [set]);
+
+  const loadCategories = useCallback(async () => {
+    try {
+      const r = await fetch("/api/knowledge/categories");
+      if (!r.ok) return;
+      const d = await r.json();
+      set({ categories: d.categories || [] });
+    } catch { /* offline */ }
+  }, [set]);
+
+  const createCategory = useCallback(async (payload) => {
+    const r = await fetch("/api/knowledge/categories", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || r.statusText);
+    set((s) => ({ categories: [...s.categories, d] }));
+    return d;
+  }, [set]);
+
+  const updateCategory = useCallback(async (id, patch) => {
+    const r = await fetch(`/api/knowledge/categories/${id}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch),
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || r.statusText);
+    set((s) => ({ categories: s.categories.map((c) => c.id === id ? d : c) }));
+    return d;
+  }, [set]);
+
+  const deleteCategory = useCallback(async (id) => {
+    const r = await fetch(`/api/knowledge/categories/${id}`, { method: "DELETE" });
+    if (!r.ok) { const d = await r.json(); throw new Error(d.error || r.statusText); }
+    set((s) => ({ categories: s.categories.filter((c) => c.id !== id) }));
+    // reload docs because some docs got reassigned to parent category
+    loadKnowledgeDocs();
+  }, [set, loadKnowledgeDocs]);
 
   const toggleKnowledgeDoc = useCallback(async (id) => {
     try {
@@ -328,7 +367,7 @@ export function AppProvider({ children }) {
   }, [set, state.contextItems]);
 
   // ---- auth ----
-  const loadAppData = useCallback(() => { loadCases(); loadContext(); loadKnowledgeDocs(); }, [loadCases, loadContext, loadKnowledgeDocs]);
+  const loadAppData = useCallback(() => { loadCases(); loadContext(); loadKnowledgeDocs(); loadCategories(); }, [loadCases, loadContext, loadKnowledgeDocs, loadCategories]);
 
   const checkAuth = useCallback(async () => {
     try {
@@ -534,6 +573,7 @@ export function AppProvider({ children }) {
   const api = { state, set, go, loadCases, loadContext, openCase, ensureCase, setFilter, onFileChosen, analyze,
     toggleAgency, send, resetHandoff, openAddContext, closeAddContext, saveContext, toggleContext, setDraftFile, deleteContext, attachContextFile,
     loadKnowledgeDocs, toggleKnowledgeDoc, updateKnowledgeDoc, deleteKnowledgeDoc,
+    loadCategories, createCategory, updateCategory, deleteCategory,
     checkAuth, login, logout, deleteCase, setVerdict,
     loadUsers, createUserAdmin, updateUserAdmin, deleteUserAdmin, resetPasswordAdmin,
     loadLeads, createLead, discardLead, deleteLead, promoteLead, runDiscovery, collectLead,

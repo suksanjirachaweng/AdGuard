@@ -604,6 +604,27 @@ app.delete("/api/knowledge/docs/:id", requireAuth, requireAdmin, wrap(async (req
   res.json({ ok: true });
 }));
 
+// ---- Knowledge base: categories (dynamic, DB-backed) ---------------------
+app.get("/api/knowledge/categories", requireAuth, wrap(async (_req, res) => {
+  res.json({ categories: await store.listCategories() });
+}));
+app.post("/api/knowledge/categories", requireAuth, requireAdmin, wrap(async (req, res) => {
+  const { label = "", parentId, color, bgColor } = req.body || {};
+  if (!label.trim()) return res.status(400).json({ error: "ต้องระบุชื่อหมวดหมู่" });
+  res.json(await store.createCategory({ label: label.trim(), parentId, color, bgColor }));
+}));
+app.patch("/api/knowledge/categories/:id", requireAuth, requireAdmin, wrap(async (req, res) => {
+  const { label, color, bgColor, parentId, sortOrder } = req.body || {};
+  const cat = await store.updateCategory(Number(req.params.id), { label, color, bgColor, parentId, sortOrder });
+  if (!cat) return res.status(404).json({ error: "ไม่พบหมวดหมู่" });
+  res.json(cat);
+}));
+app.delete("/api/knowledge/categories/:id", requireAuth, requireAdmin, wrap(async (req, res) => {
+  const ok = await store.deleteCategory(Number(req.params.id));
+  if (!ok) return res.status(404).json({ error: "ไม่พบหมวดหมู่" });
+  res.json({ ok: true });
+}));
+
 // ---- Knowledge base (FDA alerts via Firecrawl) --------------------------
 // In-memory crawl job state (single-process; resets on restart)
 const crawlJobs = new Map(); // jobId → { status, total, done, errors, startedAt }
