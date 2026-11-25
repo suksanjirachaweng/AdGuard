@@ -592,6 +592,12 @@ app.patch("/api/knowledge/docs/:id/toggle", requireAuth, requireAdmin, wrap(asyn
   if (!doc) return res.status(404).json({ error: "ไม่พบเอกสาร" });
   res.json(doc);
 }));
+app.patch("/api/knowledge/docs/:id", requireAuth, requireAdmin, wrap(async (req, res) => {
+  const { title, category } = req.body || {};
+  const doc = await store.updateKnowledgeDoc(Number(req.params.id), { title, category });
+  if (!doc) return res.status(404).json({ error: "ไม่พบเอกสาร" });
+  res.json(doc);
+}));
 app.delete("/api/knowledge/docs/:id", requireAuth, requireAdmin, wrap(async (req, res) => {
   const ok = await store.deleteKnowledgeDoc(Number(req.params.id));
   if (!ok) return res.status(404).json({ error: "ไม่พบเอกสาร" });

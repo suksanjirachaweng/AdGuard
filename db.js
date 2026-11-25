@@ -544,6 +544,19 @@ export async function toggleKnowledgeDoc(id) {
   return rows[0] ? mapKnowledgeDoc(rows[0]) : null;
 }
 
+export async function updateKnowledgeDoc(id, { title, category }) {
+  const fields = [];
+  const vals = [];
+  if (title !== undefined)    { fields.push(`title=$${fields.length + 1}`);    vals.push(title); }
+  if (category !== undefined) { fields.push(`category=$${fields.length + 1}`); vals.push(category); }
+  if (!fields.length) return null;
+  vals.push(id);
+  const { rows } = await pool.query(
+    `UPDATE knowledge_docs SET ${fields.join(",")} WHERE id=$${vals.length} RETURNING *`, vals
+  );
+  return rows[0] ? mapKnowledgeDoc(rows[0]) : null;
+}
+
 export async function deleteKnowledgeDoc(id) {
   const { rowCount } = await pool.query("DELETE FROM knowledge_docs WHERE id=$1", [id]);
   return rowCount > 0;

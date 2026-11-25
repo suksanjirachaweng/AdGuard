@@ -124,6 +124,22 @@ export function AppProvider({ children }) {
     } catch { /* offline */ }
   }, [set]);
 
+  const updateKnowledgeDoc = useCallback(async (id, patch) => {
+    const r = await fetch(`/api/knowledge/docs/${id}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch),
+    });
+    if (!r.ok) throw new Error(await r.text());
+    const updated = await r.json();
+    set((s) => ({ knowledgeDocs: s.knowledgeDocs.map((d) => d.id === id ? { ...d, ...updated, chunkCount: d.chunkCount } : d) }));
+    return updated;
+  }, [set]);
+
+  const deleteKnowledgeDoc = useCallback(async (id) => {
+    const r = await fetch(`/api/knowledge/docs/${id}`, { method: "DELETE" });
+    if (!r.ok) throw new Error(await r.text());
+    set((s) => ({ knowledgeDocs: s.knowledgeDocs.filter((d) => d.id !== id) }));
+  }, [set]);
+
   // Fetch a case's stored AI analysis into state (no navigation). Called by the
   // Result component for whatever :id is in the URL (so deep links work too).
   const ensureCase = useCallback(async (id) => {
@@ -517,7 +533,7 @@ export function AppProvider({ children }) {
 
   const api = { state, set, go, loadCases, loadContext, openCase, ensureCase, setFilter, onFileChosen, analyze,
     toggleAgency, send, resetHandoff, openAddContext, closeAddContext, saveContext, toggleContext, setDraftFile, deleteContext, attachContextFile,
-    loadKnowledgeDocs, toggleKnowledgeDoc,
+    loadKnowledgeDocs, toggleKnowledgeDoc, updateKnowledgeDoc, deleteKnowledgeDoc,
     checkAuth, login, logout, deleteCase, setVerdict,
     loadUsers, createUserAdmin, updateUserAdmin, deleteUserAdmin, resetPasswordAdmin,
     loadLeads, createLead, discardLead, deleteLead, promoteLead, runDiscovery, collectLead,

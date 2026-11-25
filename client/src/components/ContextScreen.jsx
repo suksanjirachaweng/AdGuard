@@ -65,12 +65,118 @@ function DocModal({ item, onClose, onDelete, onAttach }) {
 const CAT_LABEL = { food: "อาหาร", drug: "ยา", cosmetic: "เครื่องสำอาง", herbal: "สมุนไพร", medical_device: "เครื่องมือแพทย์", hazardous: "วัตถุอันตราย", general: "ทั่วไป" };
 const CAT_COLOR = { food: "#16743c", drug: "#1a5fa8", cosmetic: "#7b2fbe", herbal: "#2d7d44", medical_device: "#b06000", hazardous: "#c0392b", general: "#6b7d75" };
 const CAT_BG   = { food: "#e8f5e9", drug: "#e3f2fd", cosmetic: "#f3e8ff", herbal: "#e8f5e9", medical_device: "#fff3e0", hazardous: "#fdecea", general: "#eef2f0" };
+const CAT_OPTIONS = ["food","drug","cosmetic","herbal","medical_device","hazardous","general"];
+
+function KnowledgeDocModal({ doc, onClose, onSave, onDelete }) {
+  const [title, setTitle] = useState(doc.title);
+  const [category, setCategory] = useState(doc.category || "general");
+  const [busy, setBusy] = useState(false);
+  const [delConfirm, setDelConfirm] = useState(false);
+  const [error, setError] = useState("");
+  const dirty = title !== doc.title || category !== doc.category;
+
+  const handleSave = async () => {
+    if (!title.trim()) return setError("ชื่อเอกสารห้ามว่าง");
+    setBusy(true); setError("");
+    try { await onSave(doc.id, { title: title.trim(), category }); onClose(); }
+    catch (e) { setError(e.message); }
+    finally { setBusy(false); }
+  };
+
+  const handleDelete = async () => {
+    setBusy(true);
+    try { await onDelete(doc.id); onClose(); }
+    catch (e) { setError(e.message); setBusy(false); }
+  };
+
+  const cat = category || "general";
+  const color = CAT_COLOR[cat] || "#6b7d75";
+  const bg    = CAT_BG[cat]    || "#eef2f0";
+
+  return (
+    <div onClick={onClose} style={st("position:fixed;inset:0;background:rgba(10,30,22,.55);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;z-index:70;padding:24px;")}>
+      <div onClick={(e) => e.stopPropagation()} style={st("background:#fff;border-radius:16px;width:560px;max-width:100%;display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(0,0,0,.3);animation:fadeUp .3s ease;")}>
+        {/* Header */}
+        <div style={st("padding:20px 24px;border-bottom:1px solid #eef2f0;display:flex;align-items:center;gap:12px;")}>
+          <div style={st("width:38px;height:38px;border-radius:10px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:18px;background:" + bg + ";")}>📄</div>
+          <div style={st("flex:1;font-size:15px;font-weight:700;color:#16241d;")}>แก้ไขเอกสาร PDF</div>
+          <button onClick={onClose} style={st("background:none;border:none;font-size:22px;color:#9aa8a1;cursor:pointer;line-height:1;")}>×</button>
+        </div>
+
+        {/* Body */}
+        <div style={st("padding:22px 24px;display:flex;flex-direction:column;gap:18px;")}>
+          {/* Title field */}
+          <div>
+            <label style={st("display:block;font-size:12px;font-weight:600;color:#5a6b63;margin-bottom:7px;")}>ชื่อเอกสาร</label>
+            <input value={title} onChange={(e) => setTitle(e.target.value)}
+              style={st("width:100%;box-sizing:border-box;border:1.5px solid #d0dbd4;border-radius:9px;padding:10px 12px;font-family:inherit;font-size:13.5px;color:#16241d;outline:none;")}
+              onFocus={(e) => e.target.style.borderColor="#2f9e6a"}
+              onBlur={(e) => e.target.style.borderColor="#d0dbd4"} />
+          </div>
+
+          {/* Category selector */}
+          <div>
+            <label style={st("display:block;font-size:12px;font-weight:600;color:#5a6b63;margin-bottom:7px;")}>หมวดหมู่สินค้า</label>
+            <div style={st("display:grid;grid-template-columns:repeat(4,1fr);gap:8px;")}>
+              {CAT_OPTIONS.map((c) => {
+                const sel = category === c;
+                const cc = CAT_COLOR[c], cb = CAT_BG[c];
+                return (
+                  <button key={c} onClick={() => setCategory(c)}
+                    style={st("border-radius:8px;padding:8px 6px;font-family:inherit;font-size:11.5px;font-weight:600;cursor:pointer;transition:all .15s;border:1.5px solid " + (sel ? cc : "#e2e9e5") + ";background:" + (sel ? cb : "#fafcfb") + ";color:" + (sel ? cc : "#7d8e86") + ";")}>
+                    {CAT_LABEL[c]}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* File info */}
+          <div style={st("background:#f8faf9;border-radius:9px;padding:12px 14px;display:flex;gap:10px;align-items:flex-start;")}>
+            <div style={st("flex:1;")}>
+              <div style={st("font-size:11px;font-weight:600;color:#9aa8a1;margin-bottom:3px;")}>ไฟล์ต้นทาง</div>
+              <div style={st("font-size:12.5px;color:#5a6b63;font-family:'IBM Plex Mono',monospace;word-break:break-all;")}>{doc.sourceFile || "—"}</div>
+            </div>
+            <div style={st("text-align:right;flex-shrink:0;")}>
+              <div style={st("font-size:11px;font-weight:600;color:#9aa8a1;margin-bottom:3px;")}>Chunks</div>
+              <div style={st("font-size:14px;font-weight:700;color:#16241d;font-family:'IBM Plex Mono',monospace;")}>{doc.chunkCount ?? "—"}</div>
+            </div>
+          </div>
+
+          {error && <div style={st("color:#c0392b;font-size:12px;background:#fdecea;padding:9px 12px;border-radius:8px;")}>⚠ {error}</div>}
+        </div>
+
+        {/* Footer */}
+        <div style={st("padding:16px 24px;border-top:1px solid #eef2f0;display:flex;align-items:center;justify-content:space-between;gap:10px;")}>
+          <div>
+            {!delConfirm
+              ? <button onClick={() => setDelConfirm(true)} disabled={busy} style={st("background:#fdecea;color:#c0392b;border:1px solid #f5c6bf;border-radius:8px;padding:8px 14px;font-family:inherit;font-size:12.5px;font-weight:600;cursor:pointer;")}>ลบเอกสาร</button>
+              : <div style={st("display:flex;align-items:center;gap:8px;")}>
+                  <span style={st("font-size:12px;color:#c0392b;font-weight:600;")}>ยืนยันลบ?</span>
+                  <button onClick={handleDelete} disabled={busy} style={st("background:#c0392b;color:#fff;border:none;border-radius:7px;padding:7px 13px;font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;")}>{busy ? "กำลังลบ…" : "ลบเลย"}</button>
+                  <button onClick={() => setDelConfirm(false)} style={st("background:none;border:1px solid #d0dbd4;border-radius:7px;padding:7px 13px;font-family:inherit;font-size:12px;cursor:pointer;")}>ยกเลิก</button>
+                </div>
+            }
+          </div>
+          <div style={st("display:flex;gap:8px;")}>
+            <button onClick={onClose} style={st("background:none;border:1px solid #d0dbd4;border-radius:9px;padding:9px 18px;font-family:inherit;font-size:13px;cursor:pointer;color:#5a6b63;")}>ยกเลิก</button>
+            <button onClick={handleSave} disabled={!dirty || busy}
+              style={st("background:" + (dirty && !busy ? "#157347" : "#b0c9bb") + ";color:#fff;border:none;border-radius:9px;padding:9px 20px;font-family:inherit;font-size:13px;font-weight:600;cursor:" + (dirty && !busy ? "pointer" : "default") + ";transition:background .2s;")}>
+              {busy ? "กำลังบันทึก…" : "บันทึก"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function ContextScreen() {
-  const { state, openAddContext, toggleContext, deleteContext, attachContextFile, toggleKnowledgeDoc } = useApp();
+  const { state, openAddContext, toggleContext, deleteContext, attachContextFile, toggleKnowledgeDoc, updateKnowledgeDoc, deleteKnowledgeDoc } = useApp();
   const items = state.contextItems;
   const knowledgeDocs = state.knowledgeDocs || [];
   const [openDoc, setOpenDoc] = useState(null);
+  const [openKnowledgeDoc, setOpenKnowledgeDoc] = useState(null);
 
   const handleDelete = async (item) => {
     setOpenDoc(null);
@@ -161,10 +267,10 @@ export default function ContextScreen() {
           const knob = "position:absolute;top:3px;left:" + (doc.active ? "20px" : "3px") + ";width:17px;height:17px;border-radius:50%;background:#fff;transition:left .2s;box-shadow:0 1px 2px rgba(0,0,0,.2);";
           const stStyle = "font-size:11px;font-weight:600;color:" + (doc.active ? "#2c7a4f" : "#9aa8a1") + ";";
           return (
-            <div key={"kd-" + doc.id}
-              style={st("background:#fff;border:1px solid #e2e9e5;border-left:3px solid " + color + ";border-radius:13px;padding:18px;display:flex;flex-direction:column;gap:11px;transition:border-color .15s,box-shadow .15s;")}
-              onMouseEnter={(e) => { e.currentTarget.style.boxShadow = "0 2px 10px rgba(0,0,0,.06)"; }}
-              onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "none"; }}
+            <div key={"kd-" + doc.id} onClick={() => setOpenKnowledgeDoc(doc)}
+              style={st("background:#fff;border:1px solid #e2e9e5;border-left:3px solid " + color + ";border-radius:13px;padding:18px;display:flex;flex-direction:column;gap:11px;cursor:pointer;transition:border-color .15s,box-shadow .15s;")}
+              onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#bcd6c8"; e.currentTarget.style.boxShadow = "0 2px 10px rgba(0,0,0,.06)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#e2e9e5"; e.currentTarget.style.boxShadow = "none"; }}
             >
               <div style={st("display:flex;align-items:flex-start;gap:12px;")}>
                 <div style={st("width:40px;height:40px;border-radius:10px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:18px;background:" + bg + ";")}>📄</div>
@@ -175,7 +281,7 @@ export default function ContextScreen() {
                   </div>
                   <div style={st("font-size:14px;font-weight:600;color:#16241d;line-height:1.35;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;")} title={doc.title}>{doc.title}</div>
                 </div>
-                <button onClick={() => toggleKnowledgeDoc(doc.id)} style={st(tog)}><span style={st(knob)}></span></button>
+                <button onClick={(e) => { e.stopPropagation(); toggleKnowledgeDoc(doc.id); }} style={st(tog)}><span style={st(knob)}></span></button>
               </div>
               <div style={st("font-size:12px;color:#9aa8a1;line-height:1.5;")}>{doc.chunkCount != null ? `${doc.chunkCount} text chunks · ระบบดึงอัตโนมัติตามหมวดสินค้าที่วิเคราะห์` : "ระบบดึง chunks อัตโนมัติ"}</div>
               <div style={st("display:flex;align-items:center;justify-content:space-between;border-top:1px solid #f3f6f4;padding-top:10px;margin-top:auto;")}>
@@ -188,6 +294,14 @@ export default function ContextScreen() {
       </div>
 
       {openDoc && <DocModal item={openDoc} onClose={() => setOpenDoc(null)} onDelete={handleDelete} onAttach={handleAttach} />}
+      {openKnowledgeDoc && (
+        <KnowledgeDocModal
+          doc={openKnowledgeDoc}
+          onClose={() => setOpenKnowledgeDoc(null)}
+          onSave={updateKnowledgeDoc}
+          onDelete={deleteKnowledgeDoc}
+        />
+      )}
     </div>
   );
 }
