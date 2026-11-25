@@ -110,13 +110,10 @@ export default function ContextScreen() {
         ))}
       </div>
 
-      {/* ── Section: Manual Context ── */}
-      <div style={st("display:flex;align-items:center;gap:10px;margin-bottom:12px;")}>
-        <div style={st("font-size:13px;font-weight:700;color:#16241d;white-space:nowrap;")}>✦ บริบท AI (manual)</div>
-        <div style={st("flex:1;height:1px;background:#e2e9e5;")}></div>
-        <div style={st("font-size:11.5px;color:#7d8e86;white-space:nowrap;")}>{items.length} รายการ · {activeCount} ใช้งานอยู่</div>
-      </div>
+      {/* ── Unified grid: manual context + knowledge docs ── */}
       <div style={st("display:grid;grid-template-columns:1fr 1fr;gap:14px;")}>
+
+        {/* Manual context items */}
         {items.map((c) => {
           const tp = ctxTypes[c.type] || ctxTypes.law;
           const ic = "width:40px;height:40px;border-radius:10px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;background:" + tp.bg + ";color:" + tp.color + ";";
@@ -126,7 +123,7 @@ export default function ContextScreen() {
           const stStyle = "font-size:11px;font-weight:600;color:" + (c.active ? "#2c7a4f" : "#9aa8a1") + ";";
           const isLong = (c.body || "").length > BODY_PREVIEW_LEN;
           return (
-            <div key={c.id} onClick={() => setOpenDoc(c)}
+            <div key={"ctx-" + c.id} onClick={() => setOpenDoc(c)}
               style={st("background:#fff;border:1px solid #e2e9e5;border-radius:13px;padding:18px;display:flex;flex-direction:column;gap:11px;cursor:pointer;transition:border-color .15s,box-shadow .15s;")}
               onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#bcd6c8"; e.currentTarget.style.boxShadow = "0 2px 10px rgba(0,0,0,.06)"; }}
               onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#e2e9e5"; e.currentTarget.style.boxShadow = "none"; }}
@@ -134,7 +131,10 @@ export default function ContextScreen() {
               <div style={st("display:flex;align-items:flex-start;gap:12px;")}>
                 <div style={st(ic)}>{tp.icon}</div>
                 <div style={st("flex:1;min-width:0;")}>
-                  <div style={st("display:flex;align-items:center;gap:8px;margin-bottom:3px;")}><span style={st(badge)}>{tp.label}</span></div>
+                  <div style={st("display:flex;align-items:center;gap:6px;margin-bottom:3px;flex-wrap:wrap;")}>
+                    <span style={st(badge)}>{tp.label}</span>
+                    <span style={st("font-size:9.5px;font-weight:600;padding:1px 7px;border-radius:4px;background:#f0f4f2;color:#7d8e86;border:1px solid #dde6e1;")}>manual</span>
+                  </div>
                   <div style={st("font-size:14px;font-weight:600;color:#16241d;line-height:1.35;")}>{c.title}</div>
                 </div>
                 <button onClick={(e) => { e.stopPropagation(); toggleContext(c.id); }} style={st(tog)}><span style={st(knob)}></span></button>
@@ -150,40 +150,42 @@ export default function ContextScreen() {
             </div>
           );
         })}
-      </div>
-      {/* ── Section: Knowledge Docs ── */}
-      {knowledgeDocs.length > 0 && (
-        <div style={st("margin-top:28px;")}>
-          <div style={st("display:flex;align-items:center;gap:10px;margin-bottom:12px;")}>
-            <div style={st("font-size:13px;font-weight:700;color:#16241d;white-space:nowrap;")}>📚 ฐานความรู้ PDF</div>
-            <div style={st("flex:1;height:1px;background:#e2e9e5;")}></div>
-            <div style={st("font-size:11.5px;color:#7d8e86;white-space:nowrap;")}>{knowledgeDocs.length} เอกสาร · {kActiveCount} ใช้งานอยู่ · ดึง chunks อัตโนมัติตามหมวดสินค้า</div>
-          </div>
-          <div style={st("display:grid;grid-template-columns:1fr 1fr;gap:10px;")}>
-            {knowledgeDocs.map((doc) => {
-              const cat = doc.category || "general";
-              const color = CAT_COLOR[cat] || "#6b7d75";
-              const bg    = CAT_BG[cat]    || "#eef2f0";
-              const label = CAT_LABEL[cat] || cat;
-              const tog = "position:relative;width:38px;height:21px;border-radius:11px;border:none;cursor:pointer;flex-shrink:0;transition:background .2s;background:" + (doc.active ? "#2f9e6a" : "#cdd8d2") + ";";
-              const knob = "position:absolute;top:3px;left:" + (doc.active ? "19px" : "3px") + ";width:15px;height:15px;border-radius:50%;background:#fff;transition:left .2s;box-shadow:0 1px 2px rgba(0,0,0,.2);";
-              return (
-                <div key={doc.id} style={st("background:#fff;border:1px solid #e2e9e5;border-radius:11px;padding:14px 16px;display:flex;align-items:flex-start;gap:12px;")}>
-                  <div style={st("flex:1;min-width:0;")}>
-                    <div style={st("display:flex;align-items:center;gap:7px;margin-bottom:5px;flex-wrap:wrap;")}>
-                      <span style={st("font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:5px;background:" + bg + ";color:" + color + ";")}>{label}</span>
-                      <span style={st("font-size:10px;color:#9aa8a1;")}>{doc.doc_type || "manual"}</span>
-                    </div>
-                    <div style={st("font-size:13px;font-weight:600;color:#16241d;line-height:1.35;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;")} title={doc.title}>{doc.title}</div>
-                    <div style={st("font-size:11px;color:#9aa8a1;margin-top:4px;font-family:'IBM Plex Mono',monospace;")}>{doc.chunkCount != null ? `${doc.chunkCount} chunks` : ""}</div>
+
+        {/* Knowledge PDF docs — same grid, visually distinct by left accent bar */}
+        {knowledgeDocs.map((doc) => {
+          const cat = doc.category || "general";
+          const color = CAT_COLOR[cat] || "#6b7d75";
+          const bg    = CAT_BG[cat]    || "#eef2f0";
+          const label = CAT_LABEL[cat] || cat;
+          const tog = "position:relative;width:40px;height:23px;border-radius:13px;border:none;cursor:pointer;flex-shrink:0;transition:background .2s;background:" + (doc.active ? "#2f9e6a" : "#cdd8d2") + ";";
+          const knob = "position:absolute;top:3px;left:" + (doc.active ? "20px" : "3px") + ";width:17px;height:17px;border-radius:50%;background:#fff;transition:left .2s;box-shadow:0 1px 2px rgba(0,0,0,.2);";
+          const stStyle = "font-size:11px;font-weight:600;color:" + (doc.active ? "#2c7a4f" : "#9aa8a1") + ";";
+          return (
+            <div key={"kd-" + doc.id}
+              style={st("background:#fff;border:1px solid #e2e9e5;border-left:3px solid " + color + ";border-radius:13px;padding:18px;display:flex;flex-direction:column;gap:11px;transition:border-color .15s,box-shadow .15s;")}
+              onMouseEnter={(e) => { e.currentTarget.style.boxShadow = "0 2px 10px rgba(0,0,0,.06)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "none"; }}
+            >
+              <div style={st("display:flex;align-items:flex-start;gap:12px;")}>
+                <div style={st("width:40px;height:40px;border-radius:10px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:18px;background:" + bg + ";")}>📄</div>
+                <div style={st("flex:1;min-width:0;")}>
+                  <div style={st("display:flex;align-items:center;gap:6px;margin-bottom:3px;flex-wrap:wrap;")}>
+                    <span style={st("font-size:10.5px;font-weight:600;padding:2px 9px;border-radius:6px;background:" + bg + ";color:" + color + ";border:1px solid " + bg + ";")}>{label}</span>
+                    <span style={st("font-size:9.5px;font-weight:600;padding:1px 7px;border-radius:4px;background:#f0f4f2;color:#7d8e86;border:1px solid #dde6e1;")}>PDF · {doc.docType || "manual"}</span>
                   </div>
-                  <button onClick={() => toggleKnowledgeDoc(doc.id)} style={st(tog)}><span style={st(knob)}></span></button>
+                  <div style={st("font-size:14px;font-weight:600;color:#16241d;line-height:1.35;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;")} title={doc.title}>{doc.title}</div>
                 </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
+                <button onClick={() => toggleKnowledgeDoc(doc.id)} style={st(tog)}><span style={st(knob)}></span></button>
+              </div>
+              <div style={st("font-size:12px;color:#9aa8a1;line-height:1.5;")}>{doc.chunkCount != null ? `${doc.chunkCount} text chunks · ระบบดึงอัตโนมัติตามหมวดสินค้าที่วิเคราะห์` : "ระบบดึง chunks อัตโนมัติ"}</div>
+              <div style={st("display:flex;align-items:center;justify-content:space-between;border-top:1px solid #f3f6f4;padding-top:10px;margin-top:auto;")}>
+                <span style={st("font-size:11px;color:#9aa8a1;font-family:'IBM Plex Mono',monospace;")}>{doc.sourceFile || ""}</span>
+                <span style={st(stStyle)}>{doc.active ? "● ใช้งานอยู่" : "○ ปิดใช้งาน"}</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
 
       {openDoc && <DocModal item={openDoc} onClose={() => setOpenDoc(null)} onDelete={handleDelete} onAttach={handleAttach} />}
     </div>
