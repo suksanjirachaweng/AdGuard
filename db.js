@@ -116,6 +116,33 @@ export async function init() {
     );
   `);
 
+  // ---- Phase 4: Structured knowledge base (PDF documents + text chunks) ---
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS knowledge_docs (
+      id          serial PRIMARY KEY,
+      category    text NOT NULL DEFAULT 'general',
+      doc_type    text NOT NULL DEFAULT 'manual',
+      title       text NOT NULL,
+      source_file text,
+      priority    text NOT NULL DEFAULT 'normal',
+      active      boolean DEFAULT true,
+      created_at  timestamptz DEFAULT now()
+    );
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS knowledge_chunks (
+      id        serial PRIMARY KEY,
+      doc_id    integer REFERENCES knowledge_docs(id) ON DELETE CASCADE,
+      chunk_idx integer NOT NULL,
+      content   text NOT NULL,
+      created_at timestamptz DEFAULT now()
+    );
+  `);
+  await pool.query("CREATE INDEX IF NOT EXISTS idx_knowledge_chunks_doc ON knowledge_chunks(doc_id)");
+  // Add category + priority to context_items (safe to run repeatedly)
+  await pool.query("ALTER TABLE context_items ADD COLUMN IF NOT EXISTS category text DEFAULT 'general'");
+  await pool.query("ALTER TABLE context_items ADD COLUMN IF NOT EXISTS priority text DEFAULT 'normal'");
+
   // Seed a first admin so you can log in immediately. Credentials come from env
   // (ADMIN_EMAIL / ADMIN_PASSWORD); the defaults are dev-only — change them.
   const { rows: [uc] } = await pool.query("SELECT COUNT(*)::int AS n FROM users");
@@ -185,7 +212,14 @@ const mapCaseFull = (r) => r && ({
   analysis: r.analysis_json || null,
   referral: r.referral_json || null,
 });
-const mapContext = (r) => ({ id: r.id, type: r.type, title: r.title, body: r.body, meta: r.meta, active: !!r.active });
+const mapContext = (r) => ({
+  id: r.id, type: r.type, title: r.title, body: r.body, meta: r.meta,
+  active: !!r.active, category: r.category || "general", priority: r.priority || "normal",
+});
+const mapKnowledgeDoc = (r) => ({
+  id: r.id, category: r.category, docType: r.doc_type, title: r.title,
+  sourceFile: r.source_file, priority: r.priority, active: !!r.active, createdAt: r.created_at,
+});
 
 // ----- cases -------------------------------------------------------------
 export async function listCases(filter) {
@@ -470,6 +504,95 @@ export async function searchAlertsForContext(keywords, limit = 5) {
     [term, limit]
   );
   return rows.map(mapAlert);
+}
+
+// ----- knowledge docs + chunks -------------------------------------------
+export async function listKnowledgeDocs({ category } = {}) {
+  const { rows } = category
+    ? await pool.query("SELECT * FROM knowledge_docs WHERE category=$1 ORDER BY created_at DESC", [category])
+    : await pool.query("SELECT * FROM knowledge_docs ORDER BY category, created_at DESC");
+  return rows.map(mapKnowledgeDoc);
+}
+
+export async function insertKnowledgeDoc({ category, docType, title, sourceFile, priority = "normal" }) {
+  const { rows } = await pool.query(
+    `INSERT INTO knowledge_docs (category,doc_type,title,source_file,priority)
+     VALUES ($1,$2,$3,$4,$5) RETURNING *`,
+    [category, docType || "manual", title, sourceFile || null, priority]
+  );
+  return mapKnowledgeDoc(rows[0]);
+}
+
+export async function insertKnowledgeChunks(docId, chunks) {
+  for (let i = 0; i < chunks.length; i++) {
+    await pool.query(
+      "INSERT INTO knowledge_chunks (doc_id,chunk_idx,content) VALUES ($1,$2,$3)",
+      [docId, i, chunks[i]]
+    );
+  }
+}
+
+export async function toggleKnowledgeDoc(id) {
+  const { rows } = await pool.query(
+    "UPDATE knowledge_docs SET active = NOT active WHERE id=$1 RETURNING *", [id]
+  );
+  return rows[0] ? mapKnowledgeDoc(rows[0]) : null;
+}
+
+export async function deleteKnowledgeDoc(id) {
+  const { rowCount } = await pool.query("DELETE FROM knowledge_docs WHERE id=$1", [id]);
+  return rowCount > 0;
+}
+
+// Category detection: map URL + text keywords → product category
+const CATEGORY_PATTERNS = {
+  drug:           /ยา(?!สมุนไพร|บ้า)|drug|medicine|pharmaceutical|tablet|capsule|antibiotic/i,
+  herbal:         /สมุนไพร|herbal|herb\b/i,
+  cosmetic:       /เครื่องสำอาง|cosmetic|serum|cream|moisturizer|skincare|foundation|lipstick/i,
+  medical_device: /เครื่องมือแพทย์|medical.?device|อุปกรณ์การแพทย์|blood.?pressure|glucose/i,
+  hazardous:      /วัตถุอันตราย|hazardous|pesticide|insecticide/i,
+  food:           /อาหาร|food|supplement|dietary|เสริมอาหาร|วิตามิน|vitamin|slimx|slim|detox|collagen/i,
+};
+
+function detectCategory(text) {
+  for (const [cat, re] of Object.entries(CATEGORY_PATTERNS)) {
+    if (re.test(text)) return cat;
+  }
+  return "general";
+}
+
+// Get context enrichment for AI analysis (critical items + keyword search in chunks)
+export async function getContextForCategory(combinedText, limit = 8) {
+  const category = detectCategory(combinedText);
+  const keywords = (combinedText.match(/[฀-๿a-zA-Z]{3,}/g) || []).slice(0, 6);
+
+  // 1. Critical context_items for this category (always inject)
+  const { rows: criticalRows } = await pool.query(
+    `SELECT title, body FROM context_items
+     WHERE active = true AND priority = 'critical'
+       AND (category = $1 OR category = 'general')
+     LIMIT 5`,
+    [category]
+  );
+
+  // 2. Search knowledge_chunks by ILIKE (most relevant)
+  let chunkRows = [];
+  if (keywords.length > 0) {
+    const patterns = keywords.map((k) => `%${k}%`);
+    const { rows } = await pool.query(
+      `SELECT kd.title, kc.content AS body
+       FROM knowledge_chunks kc
+       JOIN knowledge_docs kd ON kd.id = kc.doc_id
+       WHERE kd.active = true
+         AND (kd.category = $1 OR kd.category = 'general')
+         AND kc.content ILIKE ANY($2::text[])
+       LIMIT $3`,
+      [category, patterns, limit - criticalRows.length]
+    );
+    chunkRows = rows;
+  }
+
+  return { category, items: [...criticalRows, ...chunkRows] };
 }
 
 // ----- users -------------------------------------------------------------

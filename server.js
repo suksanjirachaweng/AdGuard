@@ -156,14 +156,16 @@ const SYSTEM = `คุณคือเครื่องมือ AI ของส
 // discovery-lead promotion flow — both just need { mode, url, text,
 // imageBase64, imageMediaType, context } in and an analysis result out.
 async function runAnalysis({ mode, url = "", text = "", imageBase64 = "", imageMediaType = "image/jpeg", context = [] }) {
-  // Auto-enrich: pull relevant FDA safety alerts from the knowledge base
-  const combinedText = [url, text].filter(Boolean).join(" ").slice(0, 300);
+  // Auto-enrich: FDA alerts + knowledge base chunks (category-aware)
+  const combinedText = [url, text].filter(Boolean).join(" ").slice(0, 400);
   const keywords = combinedText.match(/[฀-๿a-zA-Z]{3,}/g) || [];
-  const fdaAlerts = keywords.length
-    ? await store.searchAlertsForContext(keywords.slice(0, 6), 3).catch(() => [])
-    : [];
+  const [fdaAlerts, knowledgeCtx] = await Promise.all([
+    keywords.length ? store.searchAlertsForContext(keywords.slice(0, 6), 3).catch(() => []) : Promise.resolve([]),
+    store.getContextForCategory(combinedText).catch(() => ({ items: [] })),
+  ]);
   const enrichedContext = [
     ...fdaAlerts.map((a) => ({ title: `[ประกาศเตือนภัย อย.] ${a.title}`, body: a.contentMd })),
+    ...knowledgeCtx.items.map((c) => ({ title: `[ฐานความรู้] ${c.title}`, body: c.body })),
     ...(Array.isArray(context) ? context : []),
   ];
 
@@ -578,6 +580,21 @@ app.patch("/api/users/:id/password", requireAuth, requireAdmin, wrap(async (req,
   const hash = await bcrypt.hash(password, 10);
   const ok = await store.resetPassword(req.params.id, hash);
   if (!ok) return res.status(404).json({ error: "ไม่พบผู้ใช้" });
+  res.json({ ok: true });
+}));
+
+// ---- Knowledge base: documents (PDF chunks) --------------------------------
+app.get("/api/knowledge/docs", requireAuth, wrap(async (req, res) => {
+  res.json({ docs: await store.listKnowledgeDocs(req.query.category ? { category: req.query.category } : {}) });
+}));
+app.patch("/api/knowledge/docs/:id/toggle", requireAuth, requireAdmin, wrap(async (req, res) => {
+  const doc = await store.toggleKnowledgeDoc(Number(req.params.id));
+  if (!doc) return res.status(404).json({ error: "ไม่พบเอกสาร" });
+  res.json(doc);
+}));
+app.delete("/api/knowledge/docs/:id", requireAuth, requireAdmin, wrap(async (req, res) => {
+  const ok = await store.deleteKnowledgeDoc(Number(req.params.id));
+  if (!ok) return res.status(404).json({ error: "ไม่พบเอกสาร" });
   res.json({ ok: true });
 }));
 
