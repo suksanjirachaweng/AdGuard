@@ -369,16 +369,18 @@ function GridView({ items, sortBy, categories, onOpenDoc, onOpenKDoc, onToggleM,
 }
 
 // ─── ListView ─────────────────────────────────────────────────────────────────
-// Column layout (fixed widths so header aligns with rows):
-// [icon 42px] [ชื่อเอกสาร flex:1] [รูปแบบ 72px] [ประเภท/หมวด 120px] [ข้อมูล 72px] [สถานะ 92px] [toggle 46px]
-// "รูปแบบ"  = HOW it was added (manual typed / PDF uploaded)
-// "ประเภท"  = WHAT the content is (type for manual items, category for PDF items)
+// Column layout:
+// [icon 42] [ชื่อเอกสาร flex:1] [รูปแบบ 68] [ประเภท 118] [หมวด 110] [ข้อมูล 68] [สถานะ 88] [toggle 46]
+// รูปแบบ = HOW added: manual | PDF
+// ประเภท = content type (manual only): กฎหมาย, รายการอนุญาต, คำต้องห้าม ...
+// หมวด   = product category (PDF only): อาหาร, ยา, เครื่องสำอาง ...
 const LIST_COLS = [
   { key: "name",     label: "ชื่อเอกสาร", flex: true,  sortAsc: "name",     sortDesc: "name_z" },
-  { key: "source",   label: "รูปแบบ",      width: 72,   sortAsc: null },
-  { key: "category", label: "ประเภท",      width: 120,  sortAsc: "category", sortDesc: null },
-  { key: "data",     label: "ข้อมูล",      width: 72,   sortAsc: "chunks",   sortDesc: null,    align: "right" },
-  { key: "status",   label: "สถานะ",       width: 92,   sortAsc: null,                          align: "right" },
+  { key: "source",   label: "รูปแบบ",      width: 68,   sortAsc: null },
+  { key: "type",     label: "ประเภท",      width: 118,  sortAsc: null },
+  { key: "category", label: "หมวด",        width: 110,  sortAsc: "category", sortDesc: null },
+  { key: "data",     label: "ข้อมูล",      width: 68,   sortAsc: "chunks",   sortDesc: null,    align: "right" },
+  { key: "status",   label: "สถานะ",       width: 88,   sortAsc: null,                          align: "right" },
 ];
 
 function ListView({ items, categories, sortBy, setSortBy, onOpenDoc, onOpenKDoc, onToggleM, onToggleK }) {
@@ -456,20 +458,24 @@ function ListView({ items, categories, sortBy, setSortBy, onOpenDoc, onOpenKDoc,
                 <div style={st("font-size:13px;font-weight:700;color:#16241d;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;")}>{item.title}</div>
                 <div style={st("font-size:10.5px;color:#9aa8a1;margin-top:1px;")}>{item.meta}</div>
               </div>
-              {/* รูปแบบ: manual */}
-              <div style={{ width: 72, flexShrink: 0, paddingRight: 6 }}>
+              {/* รูปแบบ */}
+              <div style={{ width: 68, flexShrink: 0, paddingRight: 6 }}>
                 <span style={st("font-size:9px;font-weight:600;padding:2px 7px;border-radius:4px;background:#f0f4f2;color:#7d8e86;white-space:nowrap;")}>manual</span>
               </div>
-              {/* ประเภทเนื้อหา */}
-              <div style={{ width: 120, flexShrink: 0, paddingRight: 6 }}>
+              {/* ประเภท (content type — manual only) */}
+              <div style={{ width: 118, flexShrink: 0, paddingRight: 6 }}>
                 <span style={st("font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:" + tp.bg + ";color:" + tp.color + ";white-space:nowrap;")}>{tp.label}</span>
               </div>
+              {/* หมวด (category — PDF only) */}
+              <div style={{ width: 110, flexShrink: 0, paddingRight: 6 }}>
+                <span style={st("font-size:10.5px;color:#cdd8d2;")}>—</span>
+              </div>
               {/* ข้อมูล */}
-              <div style={{ width: 72, flexShrink: 0, textAlign: "right", paddingRight: 10 }}>
-                <span style={st("font-size:10.5px;color:#9aa8a1;")}>—</span>
+              <div style={{ width: 68, flexShrink: 0, textAlign: "right", paddingRight: 10 }}>
+                <span style={st("font-size:10.5px;color:#cdd8d2;")}>—</span>
               </div>
               {/* สถานะ */}
-              <div style={{ width: 92, flexShrink: 0, textAlign: "right", paddingRight: 10 }}>
+              <div style={{ width: 88, flexShrink: 0, textAlign: "right", paddingRight: 10 }}>
                 <span style={{ fontSize: 10, fontWeight: 600, color: item.active ? "#2c7a4f" : "#b0bdb6" }}>
                   {item.active ? "● ใช้งาน" : "○ ปิด"}
                 </span>
@@ -498,23 +504,27 @@ function ListView({ items, categories, sortBy, setSortBy, onOpenDoc, onOpenKDoc,
                 <div style={st("font-size:13px;font-weight:700;color:#16241d;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;")}>{item.title}</div>
                 <div style={st("font-size:10.5px;color:#9aa8a1;margin-top:1px;font-family:'IBM Plex Mono',monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;")}>{item.sourceFile || ""}</div>
               </div>
-              {/* รูปแบบ: PDF */}
-              <div style={{ width: 72, flexShrink: 0, paddingRight: 6 }}>
+              {/* รูปแบบ */}
+              <div style={{ width: 68, flexShrink: 0, paddingRight: 6 }}>
                 <span style={st("font-size:9px;font-weight:600;padding:2px 7px;border-radius:4px;background:#f0f4f2;color:#7d8e86;white-space:nowrap;")}>PDF</span>
               </div>
-              {/* ประเภท/หมวดหมู่ (category for PDFs) */}
-              <div style={{ width: 120, flexShrink: 0, paddingRight: 6 }}>
+              {/* ประเภท (content type — manual only) */}
+              <div style={{ width: 118, flexShrink: 0, paddingRight: 6 }}>
+                <span style={st("font-size:10.5px;color:#cdd8d2;")}>—</span>
+              </div>
+              {/* หมวด (category — PDF only) */}
+              <div style={{ width: 110, flexShrink: 0, paddingRight: 6 }}>
                 <span style={st("font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:" + ci.bg + ";color:" + ci.color + ";white-space:nowrap;")}>{ci.label}</span>
               </div>
               {/* ข้อมูล (chunks) */}
-              <div style={{ width: 72, flexShrink: 0, textAlign: "right", paddingRight: 10 }}>
+              <div style={{ width: 68, flexShrink: 0, textAlign: "right", paddingRight: 10 }}>
                 {item.chunkCount != null
                   ? <span style={{ fontSize: 12, fontWeight: 800, color: ci.color, fontFamily: "'IBM Plex Mono', monospace" }}>{item.chunkCount}</span>
                   : <span style={st("font-size:10.5px;color:#cdd8d2;")}>—</span>
                 }
               </div>
               {/* สถานะ */}
-              <div style={{ width: 92, flexShrink: 0, textAlign: "right", paddingRight: 10 }}>
+              <div style={{ width: 88, flexShrink: 0, textAlign: "right", paddingRight: 10 }}>
                 <span style={{ fontSize: 10, fontWeight: 600, color: item.active ? "#2c7a4f" : "#b0bdb6" }}>
                   {item.active ? "● ใช้งาน" : "○ ปิด"}
                 </span>
