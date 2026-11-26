@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
-import { st } from "../lib/st.js";
+import { st, urlLabel, isHttpUrl } from "../lib/st.js";
 import { ctxTypes } from "../lib/data.js";
 import { riskBadge, dimColor } from "../lib/badges.js";
 import { useApp } from "../store.jsx";
@@ -183,7 +183,15 @@ export default function Result() {
           </div>
           <div style={st("font-size:19px;font-weight:700;color:#16241d;margin-bottom:6px;")}>{rc.title}</div>
           <div style={st("display:flex;align-items:center;gap:8px;flex-wrap:wrap;")}>
-            <span style={st("font-family:'IBM Plex Mono',monospace;font-size:12px;color:#3d6b54;")}>🔗 {rc.source}</span>
+            {rc.source && isHttpUrl(rc.source) ? (
+              <a href={rc.source} target="_blank" rel="noreferrer"
+                style={st("font-family:'IBM Plex Mono',monospace;font-size:12px;color:#2563a8;text-decoration:none;word-break:break-all;")}
+                title={rc.source}>
+                🔗 {urlLabel(rc.source, 80)}
+              </a>
+            ) : rc.source ? (
+              <span style={st("font-family:'IBM Plex Mono',monospace;font-size:12px;color:#3d6b54;")}>🔗 {rc.source}</span>
+            ) : null}
             <span style={st("font-size:11px;color:#7d8e86;background:#eef4f1;border:1px solid #dce6e0;padding:2px 9px;border-radius:6px;")}>{rc.channel}</span>
             <span style={st("font-size:11px;color:#7d8e86;background:#eef4f1;border:1px solid #dce6e0;padding:2px 9px;border-radius:6px;")}>หมวด: {catVal}</span>
             {caseModel && (

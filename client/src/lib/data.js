@@ -1,13 +1,21 @@
 export const navDef = [
+  { type: "group", label: "ภาพรวม", labelEn: "OVERVIEW" },
   { key: "dashboard", th: "แดชบอร์ด",      en: "Dashboard",     icon: "▦" },
+
+  { type: "group", label: "การตรวจสอบ", labelEn: "VERIFICATION" },
   { key: "upload",    th: "ตรวจสอบใหม่",    en: "New Check",     icon: "＋" },
   { key: "result",    th: "ผลวิเคราะห์ AI", en: "AI Analysis",   icon: "◎" },
   { key: "cases",     th: "ฐานข้อมูลเคส",   en: "Case Database", icon: "▤", badge: "24" },
-  { key: "context",   th: "บริบท AI",       en: "AI Context",    icon: "✦" },
+
+  { type: "group", label: "เฝ้าระวัง & ดำเนินการ", labelEn: "MONITORING" },
   { key: "monitoring", th: "เฝ้าระวัง",      en: "Monitoring",    icon: "🔭" },
   { key: "handoff",   th: "ส่งต่อหน่วยงาน", en: "Referral",      icon: "➤" },
+
+  { type: "group", label: "ระบบ AI", labelEn: "AI SYSTEM" },
+  { key: "context",   th: "บริบท & ฐานความรู้", en: "Knowledge Base", icon: "✦" },
   { key: "analytics", th: "วัดประสิทธิภาพ", en: "Model Analytics", icon: "◈" },
-  { key: "knowledge", th: "คลังความรู้",      en: "Knowledge Base",  icon: "📚", adminOnly: false },
+
+  { type: "group", label: "ผู้ดูแล", labelEn: "ADMIN", adminOnly: true },
   { key: "users",     th: "จัดการผู้ใช้",    en: "User Management", icon: "👤", adminOnly: true },
 ];
 
@@ -16,7 +24,7 @@ export const titles = {
   upload:    ["ตรวจสอบรายการใหม่", "New Verification · วาง URL / อัปโหลดไฟล์ / ภาพ"],
   result:    ["ผลการวิเคราะห์ด้วย AI", "AI Analysis Report · AD-2026-0481"],
   cases:     ["ฐานข้อมูลเคส", "Case Database · 24 records"],
-  context:   ["บริบท & ฐานความรู้ AI", "AI Context & Knowledge Base"],
+  context:   ["บริบท & ฐานความรู้ AI", "AI Context & Knowledge Base · อย."],
   monitoring: ["เฝ้าระวังโฆษณาบนอินเทอร์เน็ต", "Web & Social Monitoring Queue"],
   handoff:   ["ส่งต่อหน่วยงานที่เกี่ยวข้อง", "Inter-agency Referral"],
   analytics: ["วัดประสิทธิภาพ AI Model", "Model Performance Analytics"],

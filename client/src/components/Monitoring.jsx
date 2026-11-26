@@ -83,9 +83,25 @@ function AddLeadForm({ onAdd }) {
   );
 }
 
-function DiscoverySection({ onRun, running }) {
+const DAY_LABELS = ["อา", "จ", "อ", "พ", "พฤ", "ศ", "ส"];
+const MINUTES = [0, 15, 30, 45];
+
+function DiscoverySection({ onRun, running, isAdmin }) {
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
+  const [showSchedule, setShowSchedule] = useState(false);
+  const DEFAULT_SCH = { enabled: true, hour: 8, minute: 0, days: [0,1,2,3,4,5,6] };
+  const [schedule, setSchedule] = useState(DEFAULT_SCH);
+  const [draft, setDraft] = useState(DEFAULT_SCH);
+  const [saving, setSaving] = useState(false);
+  const [saveMsg, setSaveMsg] = useState("");
+
+  useEffect(() => {
+    fetch("/api/discovery/schedule", { credentials: "include" })
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => { if (data?.schedule) { setSchedule(data.schedule); setDraft(data.schedule); } })
+      .catch(() => {});
+  }, []);
 
   const run = async () => {
     setError("");
@@ -94,19 +110,150 @@ function DiscoverySection({ onRun, running }) {
     catch (e) { setError(e.message); }
   };
 
+  const saveSchedule = async () => {
+    setSaving(true); setSaveMsg("");
+    try {
+      const r = await fetch("/api/discovery/schedule", {
+        method: "PUT", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(draft),
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || "เกิดข้อผิดพลาด");
+      setSchedule(data.schedule);
+      setSaveMsg("บันทึกแล้ว ✓");
+      setTimeout(() => setSaveMsg(""), 3000);
+    } catch (e) { setSaveMsg("⚠ " + e.message); }
+    finally { setSaving(false); }
+  };
+
+  const toggleDay = (d) => {
+    setDraft((prev) => {
+      const days = prev.days.includes(d) ? prev.days.filter((x) => x !== d) : [...prev.days, d].sort();
+      return { ...prev, days: days.length ? days : prev.days }; // must have ≥1 day
+    });
+  };
+
+  const scheduleLabel = () => {
+    if (!schedule.hour && schedule.hour !== 0) return "กำลังโหลด…";
+    if (!schedule.enabled) return "ปิดการทำงาน";
+    const h = String(schedule.hour).padStart(2, "0");
+    const m = String(schedule.minute).padStart(2, "0");
+    const days = schedule.days.length === 7 ? "ทุกวัน" : schedule.days.map((d) => DAY_LABELS[d]).join(", ");
+    return `${days} เวลา ${h}:${m} น.`;
+  };
+
   return (
     <div style={st("background:#fff;border:1.5px solid #e2e9e5;border-radius:13px;padding:18px;margin-bottom:18px;")}>
       <div style={st("display:flex;align-items:center;gap:14px;flex-wrap:wrap;")}>
         <div style={st("flex:1;min-width:240px;")}>
           <div style={st("font-size:13.5px;font-weight:700;color:#16241d;margin-bottom:3px;")}>🔍 ค้นหาเว็บไซต์ต้องสงสัยอัตโนมัติ</div>
           <div style={st("font-size:12px;color:#7d8e86;line-height:1.6;")}>ค้นหาเว็บไซต์ที่เข้าข่ายอวดอ้างสรรพคุณเกินจริง (อาหาร/ยา) แล้วเพิ่มเข้าคิวอัตโนมัติ</div>
-          <div style={st("font-size:11px;color:#9aab9f;margin-top:4px;")}>🕗 ระบบค้นหาให้อัตโนมัติทุกวัน 08:00 น.</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 5, flexWrap: "wrap" }}>
+            {/* On/off pill toggle — visible at all times for admin */}
+            {isAdmin && draft && (
+              <button
+                onClick={async () => {
+                  const next = { ...draft, enabled: !draft.enabled };
+                  setDraft(next);
+                  try {
+                    const r = await fetch("/api/discovery/schedule", { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(next) });
+                    const data = await r.json();
+                    if (r.ok) setSchedule(data.schedule);
+                  } catch {}
+                }}
+                style={{
+                  display: "flex", alignItems: "center", gap: 5,
+                  border: "none", borderRadius: 20, padding: "3px 10px 3px 5px",
+                  background: draft.enabled ? "#e9f4ee" : "#f1f5f3",
+                  color: draft.enabled ? "#157347" : "#9aa8a1",
+                  cursor: "pointer", fontSize: 11.5, fontWeight: 600,
+                }}>
+                <span style={{
+                  width: 28, height: 16, borderRadius: 8, position: "relative",
+                  background: draft.enabled ? "#2f9e6a" : "#c8d8d0",
+                  display: "inline-block", flexShrink: 0,
+                }}>
+                  <span style={{
+                    position: "absolute", top: 2, left: draft.enabled ? 14 : 2,
+                    width: 12, height: 12, borderRadius: "50%",
+                    background: "#fff", transition: "left .2s",
+                  }} />
+                </span>
+                {draft.enabled ? "เปิดอยู่" : "ปิดอยู่"}
+              </button>
+            )}
+            <span style={st("font-size:11px;color:#9aab9f;")}>🕗 {scheduleLabel()}</span>
+            {isAdmin && (
+              <button onClick={() => setShowSchedule((v) => !v)}
+                style={{ background: "none", border: "1px solid #c9e6d4", borderRadius: 6, padding: "2px 8px", fontSize: 11, color: "#157347", cursor: "pointer" }}>
+                {showSchedule ? "ซ่อน" : "ตั้งเวลา"}
+              </button>
+            )}
+          </div>
         </div>
         <button onClick={run} disabled={running}
           style={st("background:#0f3026;color:#fff;border:none;border-radius:9px;padding:11px 20px;font-family:inherit;font-size:13px;font-weight:600;cursor:" + (running ? "not-allowed" : "pointer") + ";white-space:nowrap;")}>
           {running ? "กำลังค้นหา…" : "🔍 ค้นหาตอนนี้"}
         </button>
       </div>
+
+      {/* Schedule configurator (admin only) */}
+      {showSchedule && draft && (
+        <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid #eef2f0" }}>
+          <div style={{ fontSize: 12.5, fontWeight: 700, color: "#16241d", marginBottom: 12 }}>⚙ กำหนดเวลาค้นหาอัตโนมัติ</div>
+          {/* Enable toggle */}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 7, cursor: "pointer", fontSize: 13, color: "#16241d" }}>
+              <input type="checkbox" checked={draft.enabled} onChange={(e) => setDraft((p) => ({ ...p, enabled: e.target.checked }))} style={{ width: 15, height: 15, accentColor: "#157347" }} />
+              เปิดการค้นหาอัตโนมัติ
+            </label>
+          </div>
+          {/* Time */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, opacity: draft.enabled ? 1 : 0.4 }}>
+            <span style={{ fontSize: 12.5, color: "#5a6b63", width: 60 }}>เวลา</span>
+            <select value={draft.hour} onChange={(e) => setDraft((p) => ({ ...p, hour: Number(e.target.value) }))}
+              disabled={!draft.enabled}
+              style={st("border:1.5px solid #d8e6de;border-radius:7px;padding:5px 8px;font-family:inherit;font-size:13px;color:#16241d;outline:none;")}>
+              {Array.from({ length: 24 }, (_, i) => (
+                <option key={i} value={i}>{String(i).padStart(2, "0")}</option>
+              ))}
+            </select>
+            <span style={{ fontSize: 13, color: "#5a6b63" }}>:</span>
+            <select value={draft.minute} onChange={(e) => setDraft((p) => ({ ...p, minute: Number(e.target.value) }))}
+              disabled={!draft.enabled}
+              style={st("border:1.5px solid #d8e6de;border-radius:7px;padding:5px 8px;font-family:inherit;font-size:13px;color:#16241d;outline:none;")}>
+              {MINUTES.map((m) => <option key={m} value={m}>{String(m).padStart(2, "0")}</option>)}
+            </select>
+            <span style={{ fontSize: 11.5, color: "#9aab9f" }}>น. (เวลาไทย)</span>
+          </div>
+          {/* Days */}
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 14, opacity: draft.enabled ? 1 : 0.4, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 12.5, color: "#5a6b63", width: 60 }}>วัน</span>
+            {DAY_LABELS.map((label, i) => {
+              const on = draft.days.includes(i);
+              return (
+                <button key={i} onClick={() => !draft.enabled || toggleDay(i)} disabled={!draft.enabled}
+                  style={{ width: 36, height: 32, border: "1.5px solid " + (on ? "#2f9e6a" : "#d8e6de"), borderRadius: 7, background: on ? "#e9f4ee" : "#fff", color: on ? "#157347" : "#9aab9f", fontSize: 11.5, fontWeight: on ? 700 : 400, cursor: draft.enabled ? "pointer" : "default" }}>
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <button onClick={saveSchedule} disabled={saving}
+              style={st("background:#157347;color:#fff;border:none;border-radius:8px;padding:8px 18px;font-family:inherit;font-size:13px;font-weight:600;cursor:" + (saving ? "not-allowed" : "pointer") + ";")}>
+              {saving ? "กำลังบันทึก…" : "บันทึก"}
+            </button>
+            <button onClick={() => { setDraft(schedule); setShowSchedule(false); }}
+              style={st("background:#fff;border:1px solid #d8e2dc;border-radius:8px;padding:8px 16px;font-family:inherit;font-size:13px;color:#5a6b63;cursor:pointer;")}>
+              ยกเลิก
+            </button>
+            {saveMsg && <span style={{ fontSize: 12.5, color: saveMsg.startsWith("⚠") ? "#c0392b" : "#157347" }}>{saveMsg}</span>}
+          </div>
+        </div>
+      )}
+
       {error && (
         <div style={st("margin-top:12px;background:#fdecea;color:#c0392b;padding:10px 14px;border-radius:8px;font-size:12.5px;")}>
           ⚠ {friendlyError(error)}
@@ -121,15 +268,43 @@ function DiscoverySection({ onRun, running }) {
   );
 }
 
+const PAGE_SIZE = 10;
+
+function Pager({ page, total, onChange }) {
+  const pages = Math.ceil(total / PAGE_SIZE);
+  if (pages <= 1) return null;
+  const from = page * PAGE_SIZE + 1;
+  const to = Math.min((page + 1) * PAGE_SIZE, total);
+  const btn = (disabled) => ({
+    background: "none", border: "1.5px solid #e4ece8", borderRadius: 7,
+    padding: "4px 10px", fontFamily: "inherit", fontSize: 12,
+    color: disabled ? "#c8d8d0" : "#157347", cursor: disabled ? "default" : "pointer",
+  });
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 5, marginTop: 12 }}>
+      <span style={{ fontSize: 11.5, color: "#9aa8a1", fontFamily: "'IBM Plex Mono',monospace", marginRight: 4 }}>
+        {from}–{to} / {total}
+      </span>
+      <button style={btn(page === 0)} disabled={page === 0} onClick={() => onChange(0)}>«</button>
+      <button style={btn(page === 0)} disabled={page === 0} onClick={() => onChange(page - 1)}>‹</button>
+      <button style={btn(page >= pages - 1)} disabled={page >= pages - 1} onClick={() => onChange(page + 1)}>›</button>
+      <button style={btn(page >= pages - 1)} disabled={page >= pages - 1} onClick={() => onChange(pages - 1)}>»</button>
+    </div>
+  );
+}
+
 export default function Monitoring() {
   const { state, loadLeads, createLead, promoteLead, discardLead, deleteLead, runDiscovery, collectLead } = useApp();
   const { leads, leadsLoading, leadsError, leadBusyId, discoveryRunning } = state;
   const [tab, setTab] = useState("pending");
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(0);
   const [actionError, setActionError] = useState("");
   const [busyAction, setBusyAction] = useState(""); // "promote" | "collect" | "discard"
   const [prescreenWarn, setPrescreenWarn] = useState(null); // { id, message } — awaiting force confirm
 
   useEffect(() => { loadLeads(tab); }, [tab, loadLeads]);
+  useEffect(() => { setPage(0); }, [tab, search]);
 
   const handleDiscoveryRun = async () => {
     const result = await runDiscovery();
@@ -175,7 +350,7 @@ export default function Monitoring() {
         </div>
       </div>
 
-      <DiscoverySection onRun={handleDiscoveryRun} running={discoveryRunning} />
+      <DiscoverySection onRun={handleDiscoveryRun} running={discoveryRunning} isAdmin={state.user?.role === "admin"} />
       <AddLeadForm onAdd={createLead} />
 
       {actionError && (
@@ -201,27 +376,49 @@ export default function Monitoring() {
         </div>
       )}
 
-      <div style={st("display:flex;gap:6px;margin-bottom:16px;")}>
-        {STATUS_TABS.map((s) => (
-          <button key={s.value} onClick={() => setTab(s.value)}
-            style={st("border:1.5px solid " + (tab === s.value ? "#2f9e6a" : "#e2e9e5") + ";background:" + (tab === s.value ? "#e9f4ee" : "#fff") + ";color:" + (tab === s.value ? "#157347" : "#5a6b63") + ";border-radius:8px;padding:7px 14px;font-family:inherit;font-size:12.5px;font-weight:600;cursor:pointer;")}>
-            {s.label}
-          </button>
-        ))}
+      {/* Filter bar: status dropdown + search */}
+      <div style={st("display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap;")}>
+        <select
+          value={tab}
+          onChange={(e) => setTab(e.target.value)}
+          style={st("border:1.5px solid #d8e6de;background:#fff;color:#16241d;border-radius:8px;padding:8px 32px 8px 12px;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;outline:none;appearance:none;background-image:url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23157347' stroke-width='1.8' fill='none' stroke-linecap='round'/%3E%3C/svg%3E\");background-repeat:no-repeat;background-position:right 10px center;")}
+        >
+          {STATUS_TABS.map((s) => (
+            <option key={s.value} value={s.value}>{s.label}</option>
+          ))}
+        </select>
+        <div style={{ flex: 1, minWidth: 200, position: "relative" }}>
+          <span style={{ position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)", fontSize: 13, color: "#9aa8a1", pointerEvents: "none" }}>🔍</span>
+          <input
+            type="text"
+            placeholder="ค้นหา URL หรือข้อความ…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            style={st("width:100%;padding:8px 12px 8px 32px;border:1.5px solid #d8e6de;border-radius:8px;font-family:inherit;font-size:13px;color:#16241d;outline:none;box-sizing:border-box;")}
+          />
+        </div>
       </div>
 
       {leadsError && (
         <div style={st("background:#fdecea;color:#c0392b;padding:14px 18px;border-radius:10px;font-size:13.5px;margin-bottom:16px;")}>⚠ {leadsError}</div>
       )}
 
+      {(() => {
+        const q = search.trim().toLowerCase();
+        const filtered = q
+          ? leads.filter((l) => l.url?.toLowerCase().includes(q) || l.rawText?.toLowerCase().includes(q))
+          : leads;
+        const paged = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+        return (
       <div style={st("background:#fff;border-radius:14px;border:1.5px solid #e8f0ec;overflow:hidden;")}>
         {leadsLoading ? (
           <div style={st("padding:60px;text-align:center;color:#6b7d75;font-size:14px;")}>กำลังโหลด…</div>
-        ) : leads.length === 0 ? (
-          <div style={st("padding:60px;text-align:center;color:#6b7d75;font-size:14px;")}>ไม่มีรายการในคิวนี้</div>
+        ) : filtered.length === 0 ? (
+          <div style={st("padding:60px;text-align:center;color:#6b7d75;font-size:14px;")}>{q ? "ไม่พบรายการที่ตรงกับคำค้นหา" : "ไม่มีรายการในคิวนี้"}</div>
         ) : (
+          <>
           <div>
-            {leads.map((l, i) => {
+            {paged.map((l, i) => {
               const p = platformInfo(l.platform);
               const busy = leadBusyId === l.id;
               return (
@@ -233,7 +430,10 @@ export default function Monitoring() {
                       {l.status === "promoted" && <span style={st("font-size:11px;font-weight:600;color:#157347;")}>✓ ส่งเป็นเคส {l.promotedCaseId}</span>}
                       {l.status === "discarded" && <span style={st("font-size:11px;font-weight:600;color:#9aa8a1;")}>✕ ทิ้งแล้ว</span>}
                     </div>
-                    <a href={l.url} target="_blank" rel="noreferrer" style={st("font-size:13.5px;font-weight:600;color:#2563a8;text-decoration:none;word-break:break-all;")}>{l.url}</a>
+                    <a href={l.url} target="_blank" rel="noreferrer" style={st("font-size:13px;font-weight:500;color:#2563a8;text-decoration:none;word-break:break-all;")}
+                      title={l.url}>
+                      {(() => { try { const d = decodeURIComponent(l.url); return d.length > 120 ? d.slice(0, 120) + "…" : d; } catch { return l.url.length > 120 ? l.url.slice(0, 120) + "…" : l.url; } })()}
+                    </a>
                     {l.rawText && <div style={st("font-size:12.5px;color:#5a6b63;line-height:1.6;margin-top:6px;")}>{l.rawText.length > 200 ? l.rawText.slice(0, 200) + "…" : l.rawText}</div>}
                     <div style={st("font-size:11px;color:#9aa8a1;font-family:'IBM Plex Mono',monospace;margin-top:6px;")}>
                       พบเมื่อ {new Date(l.discoveredAt).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })}
@@ -265,8 +465,12 @@ export default function Monitoring() {
               );
             })}
           </div>
+          <Pager page={page} total={filtered.length} onChange={setPage} />
+          </>
         )}
       </div>
+        );
+      })()}
     </div>
   );
 }

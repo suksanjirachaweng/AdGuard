@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { st } from "../lib/st.js";
+import { st, urlLabel } from "../lib/st.js";
 
 const RISK_COLOR = { high: "#d64545", medium: "#e0a92e", low: "#2f9e6a", clear: "#6b7d75" };
 const RISK_BG = { high: "#fdecea", medium: "#fff8e1", low: "#e9f4ee", clear: "#eef2f0" };
@@ -176,7 +176,8 @@ function CheckResult({ result, query }) {
               <div style={st("font-size:13px;font-weight:600;color:#c0392b")}>⚠ {a.title}</div>
               {a.publishedAt && <div style={st("font-size:11px;color:#9aab9f;margin-top:2px")}>📅 {a.publishedAt}</div>}
               <a href={a.url} target="_blank" rel="noopener noreferrer"
-                style={st("font-size:11px;color:#c0392b;word-break:break-all")}>{a.url}</a>
+                style={st("font-size:11px;color:#c0392b;word-break:break-all")}
+                title={a.url}>{urlLabel(a.url, 80)}</a>
             </div>
           ))}
         </div>

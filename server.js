@@ -156,14 +156,16 @@ const SYSTEM = `คุณคือเครื่องมือ AI ของส
 // discovery-lead promotion flow — both just need { mode, url, text,
 // imageBase64, imageMediaType, context } in and an analysis result out.
 async function runAnalysis({ mode, url = "", text = "", imageBase64 = "", imageMediaType = "image/jpeg", context = [] }) {
-  // Auto-enrich: pull relevant FDA safety alerts from the knowledge base
-  const combinedText = [url, text].filter(Boolean).join(" ").slice(0, 300);
+  // Auto-enrich: FDA alerts + knowledge base chunks (category-aware)
+  const combinedText = [url, text].filter(Boolean).join(" ").slice(0, 400);
   const keywords = combinedText.match(/[฀-๿a-zA-Z]{3,}/g) || [];
-  const fdaAlerts = keywords.length
-    ? await store.searchAlertsForContext(keywords.slice(0, 6), 3).catch(() => [])
-    : [];
+  const [fdaAlerts, knowledgeCtx] = await Promise.all([
+    keywords.length ? store.searchAlertsForContext(keywords.slice(0, 6), 3).catch(() => []) : Promise.resolve([]),
+    store.getContextForCategory(combinedText).catch(() => ({ items: [] })),
+  ]);
   const enrichedContext = [
     ...fdaAlerts.map((a) => ({ title: `[ประกาศเตือนภัย อย.] ${a.title}`, body: a.contentMd })),
+    ...knowledgeCtx.items.map((c) => ({ title: `[ฐานความรู้] ${c.title}`, body: c.body })),
     ...(Array.isArray(context) ? context : []),
   ];
 
@@ -210,7 +212,7 @@ async function runAnalysis({ mode, url = "", text = "", imageBase64 = "", imageM
   const t0 = Date.now();
   const completion = await client.chat.completions.create({
     model: OPENROUTER_MODEL,
-    max_tokens: 4096,
+    max_tokens: 8192,
     response_format: {
       type: "json_schema",
       json_schema: { name: "analysis", strict: true, schema: ANALYSIS_SCHEMA },
@@ -226,6 +228,11 @@ async function runAnalysis({ mode, url = "", text = "", imageBase64 = "", imageM
   if (choice.finish_reason === "content_filter") {
     const err = new Error("AI ปฏิเสธการวิเคราะห์เนื้อหานี้");
     err.status = 422;
+    throw err;
+  }
+  if (choice.finish_reason === "length") {
+    const err = new Error("AI ตอบกลับไม่สมบูรณ์ (ข้อความยาวเกินไป) กรุณาลดปริมาณเนื้อหาแล้วลองใหม่");
+    err.status = 502;
     throw err;
   }
 
@@ -472,8 +479,8 @@ app.post("/api/discovery/run", requireAuth, wrap(async (req, res) => {
 }));
 
 // ---- AI context / knowledge base (auth required) ------------------------
-app.get("/api/context", requireAuth, wrap(async (_req, res) => res.json({ items: await store.listContext() })));
-app.post("/api/context", requireAuth, wrap(async (req, res) => {
+app.get("/api/knowledge/context", requireAuth, wrap(async (_req, res) => res.json({ items: await store.listContext() })));
+app.post("/api/knowledge/context", requireAuth, wrap(async (req, res) => {
   const { type = "law", title = "", body = "", meta = "" } = req.body || {};
   if (!title.trim()) return res.status(400).json({ error: "ต้องระบุหัวข้อ" });
   res.json(await store.insertContext({ type, title: title.trim(), body: body.trim() || "—", meta }));
@@ -503,7 +510,7 @@ async function extractFileText(file) {
 // as the context item's body, so the complete document lives in the DB
 // (not just a short summary).
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } });
-app.post("/api/context/upload", requireAuth, upload.single("file"), wrap(async (req, res) => {
+app.post("/api/knowledge/context/upload", requireAuth, upload.single("file"), wrap(async (req, res) => {
   if (!req.file) return res.status(400).json({ error: "ไม่พบไฟล์ที่อัปโหลด" });
   const { type = "doc", title = "" } = req.body || {};
   const extracted = await extractFileText(req.file);
@@ -521,7 +528,7 @@ app.post("/api/context/upload", requireAuth, upload.single("file"), wrap(async (
 
 // Attach/replace a real document on an *existing* context item — for legacy
 // entries that only ever had a short seed description, not a full document.
-app.patch("/api/context/:id/upload", requireAuth, upload.single("file"), wrap(async (req, res) => {
+app.patch("/api/knowledge/context/:id/upload", requireAuth, upload.single("file"), wrap(async (req, res) => {
   if (!req.file) return res.status(400).json({ error: "ไม่พบไฟล์ที่อัปโหลด" });
   const extracted = await extractFileText(req.file);
   if (!extracted) return res.status(400).json({ error: "รองรับเฉพาะไฟล์ PDF, TXT, MD, CSV" });
@@ -531,12 +538,12 @@ app.patch("/api/context/:id/upload", requireAuth, upload.single("file"), wrap(as
   if (!item) return res.status(404).json({ error: "ไม่พบบริบท" });
   res.json(item);
 }));
-app.patch("/api/context/:id/toggle", requireAuth, wrap(async (req, res) => {
+app.patch("/api/knowledge/context/:id/toggle", requireAuth, wrap(async (req, res) => {
   const c = await store.toggleContext(Number(req.params.id));
   if (!c) return res.status(404).json({ error: "ไม่พบบริบท" });
   res.json(c);
 }));
-app.delete("/api/context/:id", requireAuth, wrap(async (req, res) => {
+app.delete("/api/knowledge/context/:id", requireAuth, wrap(async (req, res) => {
   const ok = await store.deleteContext(Number(req.params.id));
   if (!ok) return res.status(404).json({ error: "ไม่พบบริบท" });
   res.json({ ok: true });
@@ -573,6 +580,72 @@ app.patch("/api/users/:id/password", requireAuth, requireAdmin, wrap(async (req,
   const hash = await bcrypt.hash(password, 10);
   const ok = await store.resetPassword(req.params.id, hash);
   if (!ok) return res.status(404).json({ error: "ไม่พบผู้ใช้" });
+  res.json({ ok: true });
+}));
+
+// ---- Knowledge base: documents (PDF chunks) --------------------------------
+app.get("/api/knowledge/docs", requireAuth, wrap(async (req, res) => {
+  res.json({ docs: await store.listKnowledgeDocs(req.query.category ? { category: req.query.category } : {}) });
+}));
+app.post("/api/knowledge/docs/upload", requireAuth, requireAdmin, upload.single("file"), wrap(async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: "ไม่พบไฟล์ที่อัปโหลด" });
+  const extracted = await extractFileText(req.file);
+  if (!extracted) return res.status(400).json({ error: "รองรับเฉพาะไฟล์ PDF, TXT, MD, CSV" });
+  if (!extracted.text) return res.status(400).json({ error: "ไม่สามารถสกัดข้อความจากไฟล์นี้ได้" });
+
+  const category = (req.body?.category || "general").trim();
+  const title = (req.body?.title || extracted.name.replace(/\.[^.]+$/, "")).slice(0, 200).trim();
+
+  const CHUNK_SIZE = 1000;
+  const text = extracted.text.slice(0, 500000);
+  const chunks = [];
+  for (let i = 0; i < text.length; i += CHUNK_SIZE) chunks.push(text.slice(i, i + CHUNK_SIZE));
+
+  const doc = await store.insertKnowledgeDoc({ category, docType: "uploaded", title, sourceFile: extracted.name });
+  await store.insertKnowledgeChunks(doc.id, chunks);
+
+  const updated = { ...doc, chunkCount: chunks.length };
+  res.json(updated);
+}));
+app.patch("/api/knowledge/docs/:id/toggle", requireAuth, requireAdmin, wrap(async (req, res) => {
+  const doc = await store.toggleKnowledgeDoc(Number(req.params.id));
+  if (!doc) return res.status(404).json({ error: "ไม่พบเอกสาร" });
+  res.json(doc);
+}));
+app.patch("/api/knowledge/docs/:id", requireAuth, requireAdmin, wrap(async (req, res) => {
+  const { title, category } = req.body || {};
+  const doc = await store.updateKnowledgeDoc(Number(req.params.id), { title, category });
+  if (!doc) return res.status(404).json({ error: "ไม่พบเอกสาร" });
+  res.json(doc);
+}));
+app.delete("/api/knowledge/docs/:id", requireAuth, requireAdmin, wrap(async (req, res) => {
+  const ok = await store.deleteKnowledgeDoc(Number(req.params.id));
+  if (!ok) return res.status(404).json({ error: "ไม่พบเอกสาร" });
+  res.json({ ok: true });
+}));
+app.get("/api/knowledge/docs/:id/chunks", requireAuth, wrap(async (req, res) => {
+  const chunks = await store.getDocChunks(Number(req.params.id));
+  res.json({ chunks });
+}));
+
+// ---- Knowledge base: categories (dynamic, DB-backed) ---------------------
+app.get("/api/knowledge/categories", requireAuth, wrap(async (_req, res) => {
+  res.json({ categories: await store.listCategories() });
+}));
+app.post("/api/knowledge/categories", requireAuth, requireAdmin, wrap(async (req, res) => {
+  const { label = "", parentId, color, bgColor } = req.body || {};
+  if (!label.trim()) return res.status(400).json({ error: "ต้องระบุชื่อหมวดหมู่" });
+  res.json(await store.createCategory({ label: label.trim(), parentId, color, bgColor }));
+}));
+app.patch("/api/knowledge/categories/:id", requireAuth, requireAdmin, wrap(async (req, res) => {
+  const { label, color, bgColor, parentId, sortOrder } = req.body || {};
+  const cat = await store.updateCategory(Number(req.params.id), { label, color, bgColor, parentId, sortOrder });
+  if (!cat) return res.status(404).json({ error: "ไม่พบหมวดหมู่" });
+  res.json(cat);
+}));
+app.delete("/api/knowledge/categories/:id", requireAuth, requireAdmin, wrap(async (req, res) => {
+  const ok = await store.deleteCategory(Number(req.params.id));
+  if (!ok) return res.status(404).json({ error: "ไม่พบหมวดหมู่" });
   res.json({ ok: true });
 }));
 
@@ -641,7 +714,7 @@ app.post("/api/knowledge/crawl", requireAuth, requireAdmin, wrap(async (req, res
           seen.add(src);
           try {
             const md = page.markdown || "";
-            const title = extractFdaTitle(md) || page.metadata.title || src;
+            const title = extractFdaTitle(md, src) || page.metadata.title || src;
             // Skip pages with no real alert title
             if (!title || title === "Safety Alert" || title === "แชร์ข่าวสาร​" || title === "ค้นหาข้อมูลการแจ้งเตือน" || title === "ลิงก์จากเว็บไซต์ภายใน อย.") { job.done++; continue; }
             await store.upsertAlert({
@@ -680,16 +753,46 @@ function extractCategory(url) {
   return m ? m[1] : "general";
 }
 
-// Extract the actual alert title from breadcrumb pattern:
-// "- [ประกาศแจ้งเตือน](url)\n- ชื่อประกาศจริง\n\nชื่อประกาศจริง"
-function extractFdaTitle(md) {
+// Generic titles that need a URL-derived suffix to be distinguishable
+const GENERIC_TITLES = new Set([
+  "เตือนภัย!! ผลิตภัณฑ์สุขภาพ(ยา)ที่ไม่ได้รับอนุญาต",
+  "เตือนภัย!! ผลิตภัณฑ์สุขภาพ(เครื่องมือแพทย์)ที่ไม่ได้รับอนุญาต",
+  "เตือนภัย!! ผลิตภัณฑ์สุขภาพ(เครื่องสำอาง) ที่ไม่ได้รับอนุญาต (ถูกเพิกถอน)",
+]);
+
+// Map generic FDA title → short product category label
+const TITLE_CATEGORY = {
+  "เตือนภัย!! ผลิตภัณฑ์สุขภาพ(ยา)ที่ไม่ได้รับอนุญาต": "ยา",
+  "เตือนภัย!! ผลิตภัณฑ์สุขภาพ(เครื่องมือแพทย์)ที่ไม่ได้รับอนุญาต": "เครื่องมือแพทย์",
+  "เตือนภัย!! ผลิตภัณฑ์สุขภาพ(เครื่องสำอาง) ที่ไม่ได้รับอนุญาต (ถูกเพิกถอน)": "เครื่องสำอาง",
+};
+
+// Extract the actual alert title from breadcrumb pattern.
+// If the title is generic (product name is in an infographic image and
+// not extractable as text), append the URL slug so entries are distinguishable.
+function extractFdaTitle(md, url = "") {
   // Last breadcrumb item that is plain text (not a link)
   const crumbMatch = md.match(/- \[ประกาศ[^\]]+\]\([^)]+\)\n- ([^\n\[]+)/);
-  if (crumbMatch) return crumbMatch[1].trim();
+  const raw = crumbMatch ? crumbMatch[1].trim() : "";
+  if (raw && !GENERIC_TITLES.has(raw)) return raw; // specific enough already
+
   // Fallback: first heading
   const h2 = md.match(/^#{1,3} (.+)$/m);
-  if (h2) return h2[1].trim();
-  return "";
+  const fromHeading = h2 ? h2[1].trim() : "";
+  if (fromHeading && !GENERIC_TITLES.has(fromHeading)) return fromHeading;
+
+  const base = raw || fromHeading;
+  if (!base) return "";
+
+  // Generic title — append slug-based number for disambiguation
+  // e.g. /notification/non18/ → "ยา (ฉบับที่ 18)"
+  const slugMatch = url.match(/non(\d+)/i) || url.match(/g-(\d[\d/-]+)/i);
+  const cat = TITLE_CATEGORY[base] || "ผลิตภัณฑ์สุขภาพ";
+  if (slugMatch) {
+    const num = slugMatch[1].replace(/\//g, "-");
+    return `เตือนภัย!! ${cat}ที่ไม่ได้รับอนุญาต · ฉบับที่ ${num}`;
+  }
+  return base;
 }
 
 // Extract Thai date from content
@@ -884,21 +987,37 @@ if (isMain) {
     } else {
       console.log(`✓ OpenRouter model: ${OPENROUTER_MODEL}`);
     }
-    startSchedules();
+    startSchedules().catch((e) => console.error("schedule init error:", e?.message || e));
   });
 }
 
 // ---- Scheduled jobs ---------------------------------------------------------
 // Auto-discovery: ค้นหาเว็บต้องสงสัยทุกวัน เวลา 08:00 น. (Asia/Bangkok)
 // Auto-crawl FDA: ดึงข้อมูล safetyalert.fda.moph.go.th ทุกวันอาทิตย์ เวลา 02:00 น.
-function startSchedules() {
+
+const DEFAULT_DISCOVERY_SCHEDULE = { enabled: true, hour: 8, minute: 0, days: [0,1,2,3,4,5,6] };
+let _discoveryTask = null;
+
+function buildCronExpr({ hour, minute, days }) {
+  // days: array of 0–6 (0=Sun), all 7 → "*"
+  const dayExpr = days.length === 7 ? "*" : days.join(",");
+  return `${minute} ${hour} * * ${dayExpr}`;
+}
+
+async function applyDiscoverySchedule(schedule) {
+  if (_discoveryTask) { _discoveryTask.destroy(); _discoveryTask = null; }
+  if (!schedule.enabled || !process.env.SERPAPI_API_KEY) return;
+  const expr = buildCronExpr(schedule);
+  _discoveryTask = cron.schedule(expr, runScheduledDiscovery, { timezone: "Asia/Bangkok" });
+  console.log(`✓ กำหนดการค้นหาเว็บอัตโนมัติ: ${expr} (Asia/Bangkok)`);
+}
+
+async function startSchedules() {
   if (process.env.DISABLE_SCHEDULES === "true") return;
 
-  // Daily discovery at 08:00 ICT
-  if (process.env.SERPAPI_API_KEY) {
-    cron.schedule("0 8 * * *", runScheduledDiscovery, { timezone: "Asia/Bangkok" });
-    console.log("✓ กำหนดการค้นหาเว็บอัตโนมัติ: ทุกวัน 08:00 น.");
-  }
+  // Load persisted discovery schedule (fall back to default)
+  const saved = await store.getSetting("discovery_schedule", DEFAULT_DISCOVERY_SCHEDULE).catch(() => DEFAULT_DISCOVERY_SCHEDULE);
+  await applyDiscoverySchedule(saved);
 
   // Weekly FDA crawl on Sunday 02:00 ICT
   if (process.env.FIRECRAWL_API_KEY) {
@@ -906,6 +1025,23 @@ function startSchedules() {
     console.log("✓ กำหนดการอัปเดตคลังความรู้ อย.: ทุกวันอาทิตย์ 02:00 น.");
   }
 }
+
+// GET current schedule + PUT to update
+app.get("/api/discovery/schedule", requireAuth, wrap(async (_req, res) => {
+  const schedule = await store.getSetting("discovery_schedule", DEFAULT_DISCOVERY_SCHEDULE);
+  res.json({ schedule, hasSerpApi: !!process.env.SERPAPI_API_KEY });
+}));
+
+app.put("/api/discovery/schedule", requireAuth, requireAdmin, wrap(async (req, res) => {
+  const { enabled, hour, minute, days } = req.body || {};
+  if (typeof hour !== "number" || hour < 0 || hour > 23) return res.status(400).json({ error: "hour ต้องเป็น 0–23" });
+  if (typeof minute !== "number" || ![0,15,30,45].includes(minute)) return res.status(400).json({ error: "minute ต้องเป็น 0, 15, 30, หรือ 45" });
+  if (!Array.isArray(days) || days.length === 0 || days.some((d) => d < 0 || d > 6)) return res.status(400).json({ error: "days ต้องมีค่า 0–6 อย่างน้อย 1 วัน" });
+  const schedule = { enabled: !!enabled, hour, minute, days: [...new Set(days)].sort() };
+  await store.setSetting("discovery_schedule", schedule);
+  await applyDiscoverySchedule(schedule);
+  res.json({ schedule });
+}));
 
 async function runScheduledDiscovery() {
   console.log("[schedule] เริ่มค้นหาเว็บต้องสงสัยอัตโนมัติ…");

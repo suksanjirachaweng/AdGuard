@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { st } from "../lib/st.js";
+import { st, urlLabel, isHttpUrl } from "../lib/st.js";
 import { riskBadge, statusBadge } from "../lib/badges.js";
 import { useApp } from "../store.jsx";
 
@@ -133,7 +133,13 @@ export default function Dashboard() {
             <span style={st("font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#7d8e86;")}>{c.id}</span>
             <div style={st("min-width:0;")}>
               <div style={st("font-size:13.5px;font-weight:500;color:#16241d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;")}>{c.title}</div>
-              <div style={st("font-size:11px;color:#9aa8a1;font-family:'IBM Plex Mono',monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;")}>{c.source}</div>
+              {isHttpUrl(c.source) ? (
+                <a href={c.source} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}
+                  style={st("font-size:11px;color:#2563a8;font-family:'IBM Plex Mono',monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;text-decoration:none;")}
+                  title={c.source}>{urlLabel(c.source, 50)}</a>
+              ) : (
+                <div style={st("font-size:11px;color:#9aa8a1;font-family:'IBM Plex Mono',monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;")}>{c.source}</div>
+              )}
             </div>
             <span style={st(riskBadge(c.risk))}>{c.riskTh}</span>
             <span style={st("font-size:12px;color:#7d8e86;")}>{c.date}</span>

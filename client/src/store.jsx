@@ -32,6 +32,7 @@ const initialState = {
   caseFilter: "all",
   // context
   contextItems: FALLBACK_CONTEXT,
+  knowledgeDocs: [],
   showAddContext: false,
   draftType: "law",
   draftTitle: "",
@@ -54,6 +55,8 @@ const initialState = {
   leadBusyId: null,
   discoveryRunning: false,
   discoveryError: "",
+  // knowledge base categories (dynamic)
+  categories: [],
   // knowledge base (FDA alerts)
   alerts: [],
   alertsTotal: 0,
@@ -67,8 +70,10 @@ const initialState = {
 
 function reducer(state, action) {
   switch (action.type) {
-    case "patch":
-      return { ...state, ...action.patch };
+    case "patch": {
+      const patch = typeof action.patch === "function" ? action.patch(state) : action.patch;
+      return { ...state, ...patch };
+    }
     default:
       return state;
   }
@@ -98,11 +103,82 @@ export function AppProvider({ children }) {
 
   const loadContext = useCallback(async () => {
     try {
-      const r = await fetch("/api/context");
+      const r = await fetch("/api/knowledge/context");
       if (!r.ok) return;
       const d = await r.json();
       set({ contextItems: d.items });
     } catch { /* offline */ }
+  }, [set]);
+
+  const loadKnowledgeDocs = useCallback(async () => {
+    try {
+      const r = await fetch("/api/knowledge/docs");
+      if (!r.ok) return;
+      const d = await r.json();
+      set({ knowledgeDocs: d.docs || [] });
+    } catch { /* offline */ }
+  }, [set]);
+
+  const loadCategories = useCallback(async () => {
+    try {
+      const r = await fetch("/api/knowledge/categories");
+      if (!r.ok) return;
+      const d = await r.json();
+      set({ categories: d.categories || [] });
+    } catch { /* offline */ }
+  }, [set]);
+
+  const createCategory = useCallback(async (payload) => {
+    const r = await fetch("/api/knowledge/categories", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || r.statusText);
+    set((s) => ({ categories: [...s.categories, d] }));
+    return d;
+  }, [set]);
+
+  const updateCategory = useCallback(async (id, patch) => {
+    const r = await fetch(`/api/knowledge/categories/${id}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch),
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || r.statusText);
+    set((s) => ({ categories: s.categories.map((c) => c.id === id ? d : c) }));
+    return d;
+  }, [set]);
+
+  const deleteCategory = useCallback(async (id) => {
+    const r = await fetch(`/api/knowledge/categories/${id}`, { method: "DELETE" });
+    if (!r.ok) { const d = await r.json(); throw new Error(d.error || r.statusText); }
+    set((s) => ({ categories: s.categories.filter((c) => c.id !== id) }));
+    // reload docs because some docs got reassigned to parent category
+    loadKnowledgeDocs();
+  }, [set, loadKnowledgeDocs]);
+
+  const toggleKnowledgeDoc = useCallback(async (id) => {
+    try {
+      const r = await fetch(`/api/knowledge/docs/${id}/toggle`, { method: "PATCH" });
+      if (!r.ok) return;
+      const updated = await r.json();
+      set((s) => ({ knowledgeDocs: s.knowledgeDocs.map((d) => d.id === id ? { ...d, active: updated.active } : d) }));
+    } catch { /* offline */ }
+  }, [set]);
+
+  const updateKnowledgeDoc = useCallback(async (id, patch) => {
+    const r = await fetch(`/api/knowledge/docs/${id}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch),
+    });
+    if (!r.ok) throw new Error(await r.text());
+    const updated = await r.json();
+    set((s) => ({ knowledgeDocs: s.knowledgeDocs.map((d) => d.id === id ? { ...d, ...updated, chunkCount: d.chunkCount } : d) }));
+    return updated;
+  }, [set]);
+
+  const deleteKnowledgeDoc = useCallback(async (id) => {
+    const r = await fetch(`/api/knowledge/docs/${id}`, { method: "DELETE" });
+    if (!r.ok) throw new Error(await r.text());
+    set((s) => ({ knowledgeDocs: s.knowledgeDocs.filter((d) => d.id !== id) }));
   }, [set]);
 
   // Fetch a case's stored AI analysis into state (no navigation). Called by the
@@ -249,7 +325,7 @@ export function AppProvider({ children }) {
       fd.append("type", state.draftType);
       if (state.draftTitle.trim()) fd.append("title", state.draftTitle.trim());
       try {
-        const r = await fetch("/api/context/upload", { method: "POST", body: fd });
+        const r = await fetch("/api/knowledge/context/upload", { method: "POST", body: fd });
         const item = await r.json();
         if (!r.ok) { set({ contextSaving: false, draftFileError: item.error || "อัปโหลดไม่สำเร็จ" }); return; }
         set({ showAddContext: false, contextSaving: false, draftFile: null, contextItems: [{ ...item, active: !!item.active }, ...state.contextItems] });
@@ -265,7 +341,7 @@ export function AppProvider({ children }) {
     set({ showAddContext: false });
     navigate(pathFor("context"));
     try {
-      const r = await fetch("/api/context", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      const r = await fetch("/api/knowledge/context", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       if (r.ok) { const item = await r.json(); set({ contextItems: [{ ...item, active: !!item.active }, ...state.contextItems] }); }
     } catch {
       set({ contextItems: [{ id: Date.now(), ...payload, active: true }, ...state.contextItems] });
@@ -273,14 +349,14 @@ export function AppProvider({ children }) {
   }, [set, navigate, state.draftTitle, state.draftBody, state.draftType, state.draftFile, state.contextItems]);
 
   const deleteContext = useCallback(async (id) => {
-    await fetch("/api/context/" + id, { method: "DELETE" });
+    await fetch("/api/knowledge/context/" + id, { method: "DELETE" });
     set({ contextItems: state.contextItems.filter((c) => c.id !== id) });
   }, [set, state.contextItems]);
 
   const attachContextFile = useCallback(async (id, file) => {
     const fd = new FormData();
     fd.append("file", file);
-    const r = await fetch("/api/context/" + id + "/upload", { method: "PATCH", body: fd });
+    const r = await fetch("/api/knowledge/context/" + id + "/upload", { method: "PATCH", body: fd });
     const item = await r.json();
     if (!r.ok) throw new Error(item.error || "อัปโหลดไม่สำเร็จ");
     set({ contextItems: state.contextItems.map((c) => (c.id === id ? { ...c, ...item } : c)) });
@@ -289,11 +365,11 @@ export function AppProvider({ children }) {
 
   const toggleContext = useCallback(async (id) => {
     set({ contextItems: state.contextItems.map((c) => (c.id === id ? { ...c, active: !c.active } : c)) });
-    try { await fetch("/api/context/" + id + "/toggle", { method: "PATCH" }); } catch { /* optimistic */ }
+    try { await fetch("/api/knowledge/context/" + id + "/toggle", { method: "PATCH" }); } catch { /* optimistic */ }
   }, [set, state.contextItems]);
 
   // ---- auth ----
-  const loadAppData = useCallback(() => { loadCases(); loadContext(); }, [loadCases, loadContext]);
+  const loadAppData = useCallback(() => { loadCases(); loadContext(); loadKnowledgeDocs(); loadCategories(); }, [loadCases, loadContext, loadKnowledgeDocs, loadCategories]);
 
   const checkAuth = useCallback(async () => {
     try {
@@ -325,7 +401,7 @@ export function AppProvider({ children }) {
     navigate("/");
   }, [set, navigate]);
 
-  // ---- bootstrap ----
+  // ---- bootstrap ---- (DEMO)
   useEffect(() => { checkAuth(); /* eslint-disable-next-line */ }, []);
   useEffect(() => () => { if (ref.current.timer) clearInterval(ref.current.timer); }, []);
 
@@ -498,6 +574,8 @@ export function AppProvider({ children }) {
 
   const api = { state, set, go, loadCases, loadContext, openCase, ensureCase, setFilter, onFileChosen, analyze,
     toggleAgency, send, resetHandoff, openAddContext, closeAddContext, saveContext, toggleContext, setDraftFile, deleteContext, attachContextFile,
+    loadKnowledgeDocs, toggleKnowledgeDoc, updateKnowledgeDoc, deleteKnowledgeDoc,
+    loadCategories, createCategory, updateCategory, deleteCategory,
     checkAuth, login, logout, deleteCase, setVerdict,
     loadUsers, createUserAdmin, updateUserAdmin, deleteUserAdmin, resetPasswordAdmin,
     loadLeads, createLead, discardLead, deleteLead, promoteLead, runDiscovery, collectLead,

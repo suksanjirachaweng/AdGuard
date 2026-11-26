@@ -149,3 +149,9 @@ public/
 adguard.db
 adguard.db-shm
 adguard.db-wal
+
+# Local knowledge base PDFs (import manually with scripts/import-knowledge.mjs)
+knowledge/
+
+# Generated assets
+scripts/rich-menu-preview.png

@@ -116,6 +116,59 @@ export async function init() {
     );
   `);
 
+  // ---- Phase 4: Structured knowledge base (PDF documents + text chunks) ---
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS knowledge_docs (
+      id          serial PRIMARY KEY,
+      category    text NOT NULL DEFAULT 'general',
+      doc_type    text NOT NULL DEFAULT 'manual',
+      title       text NOT NULL,
+      source_file text,
+      priority    text NOT NULL DEFAULT 'normal',
+      active      boolean DEFAULT true,
+      created_at  timestamptz DEFAULT now()
+    );
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS knowledge_chunks (
+      id        serial PRIMARY KEY,
+      doc_id    integer REFERENCES knowledge_docs(id) ON DELETE CASCADE,
+      chunk_idx integer NOT NULL,
+      content   text NOT NULL,
+      created_at timestamptz DEFAULT now()
+    );
+  `);
+  await pool.query("CREATE INDEX IF NOT EXISTS idx_knowledge_chunks_doc ON knowledge_chunks(doc_id)");
+  // Add category + priority to context_items (safe to run repeatedly)
+  await pool.query("ALTER TABLE context_items ADD COLUMN IF NOT EXISTS category text DEFAULT 'general'");
+  await pool.query("ALTER TABLE context_items ADD COLUMN IF NOT EXISTS priority text DEFAULT 'normal'");
+
+  // ---- Phase 5: Dynamic knowledge categories with parent/child hierarchy ---
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS knowledge_categories (
+      id         serial PRIMARY KEY,
+      slug       text UNIQUE NOT NULL,
+      label      text NOT NULL,
+      parent_id  integer REFERENCES knowledge_categories(id) ON DELETE SET NULL,
+      color      text NOT NULL DEFAULT '#6b7d75',
+      bg_color   text NOT NULL DEFAULT '#eef2f0',
+      sort_order integer DEFAULT 0,
+      created_at timestamptz DEFAULT now()
+    );
+  `);
+  // Seed the 7 built-in categories (slug is immutable; only label/color are editable)
+  await pool.query(`
+    INSERT INTO knowledge_categories (slug, label, color, bg_color, sort_order) VALUES
+      ('food',           'อาหาร',              '#16743c', '#e8f5e9', 1),
+      ('drug',           'ยา',                 '#1a5fa8', '#e3f2fd', 2),
+      ('cosmetic',       'เครื่องสำอาง',       '#7b2fbe', '#f3e8ff', 3),
+      ('herbal',         'สมุนไพร',            '#2d7d44', '#e8f5e9', 4),
+      ('medical_device', 'เครื่องมือแพทย์',   '#b06000', '#fff3e0', 5),
+      ('hazardous',      'วัตถุอันตราย',       '#c0392b', '#fdecea', 6),
+      ('general',        'ทั่วไป',             '#6b7d75', '#eef2f0', 7)
+    ON CONFLICT (slug) DO NOTHING;
+  `);
+
   // Seed a first admin so you can log in immediately. Credentials come from env
   // (ADMIN_EMAIL / ADMIN_PASSWORD); the defaults are dev-only — change them.
   const { rows: [uc] } = await pool.query("SELECT COUNT(*)::int AS n FROM users");
@@ -131,6 +184,15 @@ export async function init() {
       console.warn(`⚠️  สร้างผู้ดูแลระบบเริ่มต้น: ${email} / changeme1234 — กรุณาตั้ง ADMIN_PASSWORD แล้วเปลี่ยนรหัส`);
     }
   }
+
+  // Settings key-value store
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS settings (
+      key   text PRIMARY KEY,
+      value jsonb NOT NULL,
+      updated_at timestamptz DEFAULT now()
+    );
+  `);
 
   // Non-destructive migrations — safe to run on every boot
   await pool.query("ALTER TABLE cases ADD COLUMN IF NOT EXISTS model text");
@@ -185,7 +247,14 @@ const mapCaseFull = (r) => r && ({
   analysis: r.analysis_json || null,
   referral: r.referral_json || null,
 });
-const mapContext = (r) => ({ id: r.id, type: r.type, title: r.title, body: r.body, meta: r.meta, active: !!r.active });
+const mapContext = (r) => ({
+  id: r.id, type: r.type, title: r.title, body: r.body, meta: r.meta,
+  active: !!r.active, category: r.category || "general", priority: r.priority || "normal",
+});
+const mapKnowledgeDoc = (r) => ({
+  id: r.id, category: r.category, docType: r.doc_type, title: r.title,
+  sourceFile: r.source_file, priority: r.priority, active: !!r.active, createdAt: r.created_at,
+});
 
 // ----- cases -------------------------------------------------------------
 export async function listCases(filter) {
@@ -472,6 +541,193 @@ export async function searchAlertsForContext(keywords, limit = 5) {
   return rows.map(mapAlert);
 }
 
+// ----- knowledge docs + chunks -------------------------------------------
+export async function listKnowledgeDocs({ category } = {}) {
+  const base = `
+    SELECT kd.*, COUNT(kc.id)::int AS chunk_count
+    FROM knowledge_docs kd
+    LEFT JOIN knowledge_chunks kc ON kc.doc_id = kd.id
+  `;
+  const { rows } = category
+    ? await pool.query(base + "WHERE kd.category=$1 GROUP BY kd.id ORDER BY kd.created_at DESC", [category])
+    : await pool.query(base + "GROUP BY kd.id ORDER BY kd.category, kd.created_at DESC");
+  return rows.map((r) => ({ ...mapKnowledgeDoc(r), chunkCount: r.chunk_count }));
+}
+
+export async function insertKnowledgeDoc({ category, docType, title, sourceFile, priority = "normal" }) {
+  const { rows } = await pool.query(
+    `INSERT INTO knowledge_docs (category,doc_type,title,source_file,priority)
+     VALUES ($1,$2,$3,$4,$5) RETURNING *`,
+    [category, docType || "manual", title, sourceFile || null, priority]
+  );
+  return mapKnowledgeDoc(rows[0]);
+}
+
+export async function insertKnowledgeChunks(docId, chunks) {
+  for (let i = 0; i < chunks.length; i++) {
+    await pool.query(
+      "INSERT INTO knowledge_chunks (doc_id,chunk_idx,content) VALUES ($1,$2,$3)",
+      [docId, i, chunks[i]]
+    );
+  }
+}
+
+export async function toggleKnowledgeDoc(id) {
+  const { rows } = await pool.query(
+    "UPDATE knowledge_docs SET active = NOT active WHERE id=$1 RETURNING *", [id]
+  );
+  return rows[0] ? mapKnowledgeDoc(rows[0]) : null;
+}
+
+export async function updateKnowledgeDoc(id, { title, category }) {
+  const fields = [];
+  const vals = [];
+  if (title !== undefined)    { fields.push(`title=$${fields.length + 1}`);    vals.push(title); }
+  if (category !== undefined) { fields.push(`category=$${fields.length + 1}`); vals.push(category); }
+  if (!fields.length) return null;
+  vals.push(id);
+  const { rows } = await pool.query(
+    `UPDATE knowledge_docs SET ${fields.join(",")} WHERE id=$${vals.length} RETURNING *`, vals
+  );
+  return rows[0] ? mapKnowledgeDoc(rows[0]) : null;
+}
+
+export async function deleteKnowledgeDoc(id) {
+  const { rowCount } = await pool.query("DELETE FROM knowledge_docs WHERE id=$1", [id]);
+  return rowCount > 0;
+}
+
+export async function getDocChunks(docId) {
+  const { rows } = await pool.query(
+    "SELECT id, chunk_idx, content FROM knowledge_chunks WHERE doc_id=$1 ORDER BY chunk_idx",
+    [docId]
+  );
+  return rows.map((r) => ({ id: r.id, idx: r.chunk_idx, content: r.content }));
+}
+
+// ----- knowledge_categories (dynamic, DB-backed) --------------------------
+const mapCategory = (r) => ({
+  id: r.id, slug: r.slug, label: r.label,
+  parentId: r.parent_id || null, color: r.color, bgColor: r.bg_color,
+  sortOrder: r.sort_order, createdAt: r.created_at,
+  docCount: r.doc_count != null ? r.doc_count : undefined,
+});
+
+export async function listCategories() {
+  const { rows } = await pool.query(`
+    SELECT kc.*, COUNT(kd.id)::int AS doc_count
+    FROM knowledge_categories kc
+    LEFT JOIN knowledge_docs kd ON kd.category = kc.slug
+    GROUP BY kc.id
+    ORDER BY kc.sort_order, kc.label
+  `);
+  return rows.map(mapCategory);
+}
+
+export async function createCategory({ label, parentId = null, color = '#6b7d75', bgColor = '#eef2f0' }) {
+  const slug = 'cat_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 5);
+  const { rows: siblings } = await pool.query(
+    'SELECT MAX(sort_order) AS m FROM knowledge_categories WHERE parent_id IS NOT DISTINCT FROM $1',
+    [parentId || null]
+  );
+  const sortOrder = (siblings[0]?.m ?? 0) + 1;
+  const { rows } = await pool.query(
+    `INSERT INTO knowledge_categories (slug, label, parent_id, color, bg_color, sort_order)
+     VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+    [slug, label, parentId || null, color, bgColor, sortOrder]
+  );
+  return mapCategory(rows[0]);
+}
+
+export async function updateCategory(id, { label, color, bgColor, parentId, sortOrder }) {
+  const fields = [], vals = [];
+  if (label !== undefined)     { fields.push(`label=$${fields.length+1}`);      vals.push(label); }
+  if (color !== undefined)     { fields.push(`color=$${fields.length+1}`);      vals.push(color); }
+  if (bgColor !== undefined)   { fields.push(`bg_color=$${fields.length+1}`);   vals.push(bgColor); }
+  if (parentId !== undefined)  { fields.push(`parent_id=$${fields.length+1}`);  vals.push(parentId || null); }
+  if (sortOrder !== undefined) { fields.push(`sort_order=$${fields.length+1}`); vals.push(sortOrder); }
+  if (!fields.length) return null;
+  vals.push(id);
+  const { rows } = await pool.query(
+    `UPDATE knowledge_categories SET ${fields.join(',')} WHERE id=$${vals.length} RETURNING *`, vals
+  );
+  return rows[0] ? mapCategory(rows[0]) : null;
+}
+
+export async function deleteCategory(id) {
+  // Reassign docs in this category to the parent category's slug (or 'general')
+  const { rows: cat } = await pool.query(
+    'SELECT slug, parent_id FROM knowledge_categories WHERE id=$1', [id]
+  );
+  if (!cat[0]) return false;
+  let fallbackSlug = 'general';
+  if (cat[0].parent_id) {
+    const { rows: parent } = await pool.query(
+      'SELECT slug FROM knowledge_categories WHERE id=$1', [cat[0].parent_id]
+    );
+    if (parent[0]) fallbackSlug = parent[0].slug;
+  }
+  await pool.query('UPDATE knowledge_docs SET category=$1 WHERE category=$2', [fallbackSlug, cat[0].slug]);
+  // Move sub-categories up to parent
+  await pool.query(
+    'UPDATE knowledge_categories SET parent_id=$1 WHERE parent_id=$2',
+    [cat[0].parent_id || null, id]
+  );
+  const { rowCount } = await pool.query('DELETE FROM knowledge_categories WHERE id=$1', [id]);
+  return rowCount > 0;
+}
+
+// Category detection: map URL + text keywords → product category
+const CATEGORY_PATTERNS = {
+  drug:           /ยา(?!สมุนไพร|บ้า)|drug|medicine|pharmaceutical|tablet|capsule|antibiotic/i,
+  herbal:         /สมุนไพร|herbal|herb\b/i,
+  cosmetic:       /เครื่องสำอาง|cosmetic|serum|cream|moisturizer|skincare|foundation|lipstick/i,
+  medical_device: /เครื่องมือแพทย์|medical.?device|อุปกรณ์การแพทย์|blood.?pressure|glucose/i,
+  hazardous:      /วัตถุอันตราย|hazardous|pesticide|insecticide/i,
+  food:           /อาหาร|food|supplement|dietary|เสริมอาหาร|วิตามิน|vitamin|slimx|slim|detox|collagen/i,
+};
+
+function detectCategory(text) {
+  for (const [cat, re] of Object.entries(CATEGORY_PATTERNS)) {
+    if (re.test(text)) return cat;
+  }
+  return "general";
+}
+
+// Get context enrichment for AI analysis (critical items + keyword search in chunks)
+export async function getContextForCategory(combinedText, limit = 8) {
+  const category = detectCategory(combinedText);
+  const keywords = (combinedText.match(/[฀-๿a-zA-Z]{3,}/g) || []).slice(0, 6);
+
+  // 1. Critical context_items for this category (always inject)
+  const { rows: criticalRows } = await pool.query(
+    `SELECT title, body FROM context_items
+     WHERE active = true AND priority = 'critical'
+       AND (category = $1 OR category = 'general')
+     LIMIT 5`,
+    [category]
+  );
+
+  // 2. Search knowledge_chunks by ILIKE (most relevant)
+  let chunkRows = [];
+  if (keywords.length > 0) {
+    const patterns = keywords.map((k) => `%${k}%`);
+    const { rows } = await pool.query(
+      `SELECT kd.title, kc.content AS body
+       FROM knowledge_chunks kc
+       JOIN knowledge_docs kd ON kd.id = kc.doc_id
+       WHERE kd.active = true
+         AND (kd.category = $1 OR kd.category = 'general')
+         AND kc.content ILIKE ANY($2::text[])
+       LIMIT $3`,
+      [category, patterns, limit - criticalRows.length]
+    );
+    chunkRows = rows;
+  }
+
+  return { category, items: [...criticalRows, ...chunkRows] };
+}
+
 // ----- users -------------------------------------------------------------
 export async function listUsers() {
   const { rows } = await pool.query(
@@ -514,6 +770,20 @@ export async function createUser({ email, passwordHash, name, role = "officer" }
     [String(email).trim().toLowerCase(), passwordHash, name, role]
   );
   return rows[0];
+}
+
+export async function getSetting(key, defaultValue = null) {
+  const { rows } = await pool.query("SELECT value FROM settings WHERE key=$1", [key]);
+  return rows.length ? rows[0].value : defaultValue;
+}
+
+export async function setSetting(key, value) {
+  await pool.query(
+    `INSERT INTO settings (key,value,updated_at) VALUES ($1,$2::jsonb,now())
+     ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_at=now()`,
+    [key, JSON.stringify(value)]
+  );
+  return value;
 }
 
 export default { init };

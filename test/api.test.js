@@ -98,20 +98,20 @@ describe("DELETE /api/cases/:id", () => {
 
 describe("context API", () => {
   it("lists, adds, and toggles", async () => {
-    const list = await agent.get("/api/context");
+    const list = await agent.get("/api/knowledge/context");
     expect(list.body.items).toHaveLength(5);
 
-    const add = await agent.post("/api/context").send({ type: "rule", title: "เกณฑ์ทดสอบ", body: "b" });
+    const add = await agent.post("/api/knowledge/context").send({ type: "rule", title: "เกณฑ์ทดสอบ", body: "b" });
     expect(add.status).toBe(200);
     expect(add.body.active).toBe(true);
 
-    const toggled = await agent.patch(`/api/context/${add.body.id}/toggle`);
+    const toggled = await agent.patch(`/api/knowledge/context/${add.body.id}/toggle`);
     expect(toggled.status).toBe(200);
     expect(toggled.body.active).toBe(false);
   });
 
   it("400s when title is missing", async () => {
-    const res = await agent.post("/api/context").send({ type: "rule", body: "b" });
+    const res = await agent.post("/api/knowledge/context").send({ type: "rule", body: "b" });
     expect(res.status).toBe(400);
   });
 });
