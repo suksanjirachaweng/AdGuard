@@ -7,7 +7,6 @@ export const navDef = [
   { key: "monitoring", th: "เฝ้าระวัง",      en: "Monitoring",    icon: "🔭" },
   { key: "handoff",   th: "ส่งต่อหน่วยงาน", en: "Referral",      icon: "➤" },
   { key: "analytics", th: "วัดประสิทธิภาพ", en: "Model Analytics", icon: "◈" },
-  { key: "knowledge", th: "คลังความรู้",      en: "Knowledge Base",  icon: "📚", adminOnly: false },
   { key: "users",     th: "จัดการผู้ใช้",    en: "User Management", icon: "👤", adminOnly: true },
 ];
 

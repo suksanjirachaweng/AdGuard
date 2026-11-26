@@ -9,7 +9,6 @@ export const SCREENS = [
   { key: "monitoring", path: "/monitoring" },
   { key: "handoff",   path: "/handoff" },
   { key: "analytics", path: "/analytics" },
-  { key: "knowledge", path: "/knowledge" },
   { key: "users",     path: "/users" },
 ];
 
