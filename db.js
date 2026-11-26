@@ -185,6 +185,15 @@ export async function init() {
     }
   }
 
+  // Settings key-value store
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS settings (
+      key   text PRIMARY KEY,
+      value jsonb NOT NULL,
+      updated_at timestamptz DEFAULT now()
+    );
+  `);
+
   // Non-destructive migrations — safe to run on every boot
   await pool.query("ALTER TABLE cases ADD COLUMN IF NOT EXISTS model text");
   await pool.query("ALTER TABLE cases ADD COLUMN IF NOT EXISTS latency_ms int");
@@ -761,6 +770,20 @@ export async function createUser({ email, passwordHash, name, role = "officer" }
     [String(email).trim().toLowerCase(), passwordHash, name, role]
   );
   return rows[0];
+}
+
+export async function getSetting(key, defaultValue = null) {
+  const { rows } = await query("SELECT value FROM settings WHERE key=$1", [key]);
+  return rows.length ? rows[0].value : defaultValue;
+}
+
+export async function setSetting(key, value) {
+  await query(
+    `INSERT INTO settings (key,value,updated_at) VALUES ($1,$2::jsonb,now())
+     ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_at=now()`,
+    [key, JSON.stringify(value)]
+  );
+  return value;
 }
 
 export default { init };

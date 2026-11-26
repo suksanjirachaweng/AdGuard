@@ -83,9 +83,24 @@ function AddLeadForm({ onAdd }) {
   );
 }
 
-function DiscoverySection({ onRun, running }) {
+const DAY_LABELS = ["อา", "จ", "อ", "พ", "พฤ", "ศ", "ส"];
+const MINUTES = [0, 15, 30, 45];
+
+function DiscoverySection({ onRun, running, isAdmin }) {
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
+  const [showSchedule, setShowSchedule] = useState(false);
+  const [schedule, setSchedule] = useState(null); // loaded from API
+  const [draft, setDraft] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [saveMsg, setSaveMsg] = useState("");
+
+  useEffect(() => {
+    fetch("/api/discovery/schedule", { credentials: "include" })
+      .then((r) => r.json())
+      .then(({ schedule: s }) => { setSchedule(s); setDraft(s); })
+      .catch(() => {});
+  }, []);
 
   const run = async () => {
     setError("");
@@ -94,19 +109,150 @@ function DiscoverySection({ onRun, running }) {
     catch (e) { setError(e.message); }
   };
 
+  const saveSchedule = async () => {
+    setSaving(true); setSaveMsg("");
+    try {
+      const r = await fetch("/api/discovery/schedule", {
+        method: "PUT", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(draft),
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || "เกิดข้อผิดพลาด");
+      setSchedule(data.schedule);
+      setSaveMsg("บันทึกแล้ว ✓");
+      setTimeout(() => setSaveMsg(""), 3000);
+    } catch (e) { setSaveMsg("⚠ " + e.message); }
+    finally { setSaving(false); }
+  };
+
+  const toggleDay = (d) => {
+    setDraft((prev) => {
+      const days = prev.days.includes(d) ? prev.days.filter((x) => x !== d) : [...prev.days, d].sort();
+      return { ...prev, days: days.length ? days : prev.days }; // must have ≥1 day
+    });
+  };
+
+  const scheduleLabel = () => {
+    if (!schedule) return "กำลังโหลด…";
+    if (!schedule.enabled) return "ปิดการทำงาน";
+    const h = String(schedule.hour).padStart(2, "0");
+    const m = String(schedule.minute).padStart(2, "0");
+    const days = schedule.days.length === 7 ? "ทุกวัน" : schedule.days.map((d) => DAY_LABELS[d]).join(", ");
+    return `${days} เวลา ${h}:${m} น.`;
+  };
+
   return (
     <div style={st("background:#fff;border:1.5px solid #e2e9e5;border-radius:13px;padding:18px;margin-bottom:18px;")}>
       <div style={st("display:flex;align-items:center;gap:14px;flex-wrap:wrap;")}>
         <div style={st("flex:1;min-width:240px;")}>
           <div style={st("font-size:13.5px;font-weight:700;color:#16241d;margin-bottom:3px;")}>🔍 ค้นหาเว็บไซต์ต้องสงสัยอัตโนมัติ</div>
           <div style={st("font-size:12px;color:#7d8e86;line-height:1.6;")}>ค้นหาเว็บไซต์ที่เข้าข่ายอวดอ้างสรรพคุณเกินจริง (อาหาร/ยา) แล้วเพิ่มเข้าคิวอัตโนมัติ</div>
-          <div style={st("font-size:11px;color:#9aab9f;margin-top:4px;")}>🕗 ระบบค้นหาให้อัตโนมัติทุกวัน 08:00 น.</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 5, flexWrap: "wrap" }}>
+            {/* On/off pill toggle — visible at all times for admin */}
+            {isAdmin && draft && (
+              <button
+                onClick={async () => {
+                  const next = { ...draft, enabled: !draft.enabled };
+                  setDraft(next);
+                  try {
+                    const r = await fetch("/api/discovery/schedule", { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(next) });
+                    const data = await r.json();
+                    if (r.ok) setSchedule(data.schedule);
+                  } catch {}
+                }}
+                style={{
+                  display: "flex", alignItems: "center", gap: 5,
+                  border: "none", borderRadius: 20, padding: "3px 10px 3px 5px",
+                  background: draft.enabled ? "#e9f4ee" : "#f1f5f3",
+                  color: draft.enabled ? "#157347" : "#9aa8a1",
+                  cursor: "pointer", fontSize: 11.5, fontWeight: 600,
+                }}>
+                <span style={{
+                  width: 28, height: 16, borderRadius: 8, position: "relative",
+                  background: draft.enabled ? "#2f9e6a" : "#c8d8d0",
+                  display: "inline-block", flexShrink: 0,
+                }}>
+                  <span style={{
+                    position: "absolute", top: 2, left: draft.enabled ? 14 : 2,
+                    width: 12, height: 12, borderRadius: "50%",
+                    background: "#fff", transition: "left .2s",
+                  }} />
+                </span>
+                {draft.enabled ? "เปิดอยู่" : "ปิดอยู่"}
+              </button>
+            )}
+            <span style={st("font-size:11px;color:#9aab9f;")}>🕗 {scheduleLabel()}</span>
+            {isAdmin && (
+              <button onClick={() => setShowSchedule((v) => !v)}
+                style={{ background: "none", border: "1px solid #c9e6d4", borderRadius: 6, padding: "2px 8px", fontSize: 11, color: "#157347", cursor: "pointer" }}>
+                {showSchedule ? "ซ่อน" : "ตั้งเวลา"}
+              </button>
+            )}
+          </div>
         </div>
         <button onClick={run} disabled={running}
           style={st("background:#0f3026;color:#fff;border:none;border-radius:9px;padding:11px 20px;font-family:inherit;font-size:13px;font-weight:600;cursor:" + (running ? "not-allowed" : "pointer") + ";white-space:nowrap;")}>
           {running ? "กำลังค้นหา…" : "🔍 ค้นหาตอนนี้"}
         </button>
       </div>
+
+      {/* Schedule configurator (admin only) */}
+      {showSchedule && draft && (
+        <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid #eef2f0" }}>
+          <div style={{ fontSize: 12.5, fontWeight: 700, color: "#16241d", marginBottom: 12 }}>⚙ กำหนดเวลาค้นหาอัตโนมัติ</div>
+          {/* Enable toggle */}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 7, cursor: "pointer", fontSize: 13, color: "#16241d" }}>
+              <input type="checkbox" checked={draft.enabled} onChange={(e) => setDraft((p) => ({ ...p, enabled: e.target.checked }))} style={{ width: 15, height: 15, accentColor: "#157347" }} />
+              เปิดการค้นหาอัตโนมัติ
+            </label>
+          </div>
+          {/* Time */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, opacity: draft.enabled ? 1 : 0.4 }}>
+            <span style={{ fontSize: 12.5, color: "#5a6b63", width: 60 }}>เวลา</span>
+            <select value={draft.hour} onChange={(e) => setDraft((p) => ({ ...p, hour: Number(e.target.value) }))}
+              disabled={!draft.enabled}
+              style={st("border:1.5px solid #d8e6de;border-radius:7px;padding:5px 8px;font-family:inherit;font-size:13px;color:#16241d;outline:none;")}>
+              {Array.from({ length: 24 }, (_, i) => (
+                <option key={i} value={i}>{String(i).padStart(2, "0")}</option>
+              ))}
+            </select>
+            <span style={{ fontSize: 13, color: "#5a6b63" }}>:</span>
+            <select value={draft.minute} onChange={(e) => setDraft((p) => ({ ...p, minute: Number(e.target.value) }))}
+              disabled={!draft.enabled}
+              style={st("border:1.5px solid #d8e6de;border-radius:7px;padding:5px 8px;font-family:inherit;font-size:13px;color:#16241d;outline:none;")}>
+              {MINUTES.map((m) => <option key={m} value={m}>{String(m).padStart(2, "0")}</option>)}
+            </select>
+            <span style={{ fontSize: 11.5, color: "#9aab9f" }}>น. (เวลาไทย)</span>
+          </div>
+          {/* Days */}
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 14, opacity: draft.enabled ? 1 : 0.4, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 12.5, color: "#5a6b63", width: 60 }}>วัน</span>
+            {DAY_LABELS.map((label, i) => {
+              const on = draft.days.includes(i);
+              return (
+                <button key={i} onClick={() => !draft.enabled || toggleDay(i)} disabled={!draft.enabled}
+                  style={{ width: 36, height: 32, border: "1.5px solid " + (on ? "#2f9e6a" : "#d8e6de"), borderRadius: 7, background: on ? "#e9f4ee" : "#fff", color: on ? "#157347" : "#9aab9f", fontSize: 11.5, fontWeight: on ? 700 : 400, cursor: draft.enabled ? "pointer" : "default" }}>
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <button onClick={saveSchedule} disabled={saving}
+              style={st("background:#157347;color:#fff;border:none;border-radius:8px;padding:8px 18px;font-family:inherit;font-size:13px;font-weight:600;cursor:" + (saving ? "not-allowed" : "pointer") + ";")}>
+              {saving ? "กำลังบันทึก…" : "บันทึก"}
+            </button>
+            <button onClick={() => { setDraft(schedule); setShowSchedule(false); }}
+              style={st("background:#fff;border:1px solid #d8e2dc;border-radius:8px;padding:8px 16px;font-family:inherit;font-size:13px;color:#5a6b63;cursor:pointer;")}>
+              ยกเลิก
+            </button>
+            {saveMsg && <span style={{ fontSize: 12.5, color: saveMsg.startsWith("⚠") ? "#c0392b" : "#157347" }}>{saveMsg}</span>}
+          </div>
+        </div>
+      )}
+
       {error && (
         <div style={st("margin-top:12px;background:#fdecea;color:#c0392b;padding:10px 14px;border-radius:8px;font-size:12.5px;")}>
           ⚠ {friendlyError(error)}
@@ -203,7 +349,7 @@ export default function Monitoring() {
         </div>
       </div>
 
-      <DiscoverySection onRun={handleDiscoveryRun} running={discoveryRunning} />
+      <DiscoverySection onRun={handleDiscoveryRun} running={discoveryRunning} isAdmin={state.user?.role === "admin"} />
       <AddLeadForm onAdd={createLead} />
 
       {actionError && (

@@ -987,21 +987,37 @@ if (isMain) {
     } else {
       console.log(`✓ OpenRouter model: ${OPENROUTER_MODEL}`);
     }
-    startSchedules();
+    startSchedules().catch((e) => console.error("schedule init error:", e?.message || e));
   });
 }
 
 // ---- Scheduled jobs ---------------------------------------------------------
 // Auto-discovery: ค้นหาเว็บต้องสงสัยทุกวัน เวลา 08:00 น. (Asia/Bangkok)
 // Auto-crawl FDA: ดึงข้อมูล safetyalert.fda.moph.go.th ทุกวันอาทิตย์ เวลา 02:00 น.
-function startSchedules() {
+
+const DEFAULT_DISCOVERY_SCHEDULE = { enabled: true, hour: 8, minute: 0, days: [0,1,2,3,4,5,6] };
+let _discoveryTask = null;
+
+function buildCronExpr({ hour, minute, days }) {
+  // days: array of 0–6 (0=Sun), all 7 → "*"
+  const dayExpr = days.length === 7 ? "*" : days.join(",");
+  return `${minute} ${hour} * * ${dayExpr}`;
+}
+
+async function applyDiscoverySchedule(schedule) {
+  if (_discoveryTask) { _discoveryTask.destroy(); _discoveryTask = null; }
+  if (!schedule.enabled || !process.env.SERPAPI_API_KEY) return;
+  const expr = buildCronExpr(schedule);
+  _discoveryTask = cron.schedule(expr, runScheduledDiscovery, { timezone: "Asia/Bangkok" });
+  console.log(`✓ กำหนดการค้นหาเว็บอัตโนมัติ: ${expr} (Asia/Bangkok)`);
+}
+
+async function startSchedules() {
   if (process.env.DISABLE_SCHEDULES === "true") return;
 
-  // Daily discovery at 08:00 ICT
-  if (process.env.SERPAPI_API_KEY) {
-    cron.schedule("0 8 * * *", runScheduledDiscovery, { timezone: "Asia/Bangkok" });
-    console.log("✓ กำหนดการค้นหาเว็บอัตโนมัติ: ทุกวัน 08:00 น.");
-  }
+  // Load persisted discovery schedule (fall back to default)
+  const saved = await store.getSetting("discovery_schedule", DEFAULT_DISCOVERY_SCHEDULE).catch(() => DEFAULT_DISCOVERY_SCHEDULE);
+  await applyDiscoverySchedule(saved);
 
   // Weekly FDA crawl on Sunday 02:00 ICT
   if (process.env.FIRECRAWL_API_KEY) {
@@ -1009,6 +1025,23 @@ function startSchedules() {
     console.log("✓ กำหนดการอัปเดตคลังความรู้ อย.: ทุกวันอาทิตย์ 02:00 น.");
   }
 }
+
+// GET current schedule + PUT to update
+app.get("/api/discovery/schedule", requireAuth, wrap(async (_req, res) => {
+  const schedule = await store.getSetting("discovery_schedule", DEFAULT_DISCOVERY_SCHEDULE);
+  res.json({ schedule, hasSerpApi: !!process.env.SERPAPI_API_KEY });
+}));
+
+app.put("/api/discovery/schedule", requireAuth, requireAdmin, wrap(async (req, res) => {
+  const { enabled, hour, minute, days } = req.body || {};
+  if (typeof hour !== "number" || hour < 0 || hour > 23) return res.status(400).json({ error: "hour ต้องเป็น 0–23" });
+  if (typeof minute !== "number" || ![0,15,30,45].includes(minute)) return res.status(400).json({ error: "minute ต้องเป็น 0, 15, 30, หรือ 45" });
+  if (!Array.isArray(days) || days.length === 0 || days.some((d) => d < 0 || d > 6)) return res.status(400).json({ error: "days ต้องมีค่า 0–6 อย่างน้อย 1 วัน" });
+  const schedule = { enabled: !!enabled, hour, minute, days: [...new Set(days)].sort() };
+  await store.setSetting("discovery_schedule", schedule);
+  await applyDiscoverySchedule(schedule);
+  res.json({ schedule });
+}));
 
 async function runScheduledDiscovery() {
   console.log("[schedule] เริ่มค้นหาเว็บต้องสงสัยอัตโนมัติ…");
