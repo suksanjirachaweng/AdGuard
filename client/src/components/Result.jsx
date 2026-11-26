@@ -183,7 +183,15 @@ export default function Result() {
           </div>
           <div style={st("font-size:19px;font-weight:700;color:#16241d;margin-bottom:6px;")}>{rc.title}</div>
           <div style={st("display:flex;align-items:center;gap:8px;flex-wrap:wrap;")}>
-            <span style={st("font-family:'IBM Plex Mono',monospace;font-size:12px;color:#3d6b54;")}>🔗 {rc.source}</span>
+            {rc.source && /^https?:\/\//i.test(rc.source) ? (
+              <a href={rc.source} target="_blank" rel="noreferrer"
+                style={st("font-family:'IBM Plex Mono',monospace;font-size:12px;color:#2563a8;text-decoration:none;word-break:break-all;")}
+                title={rc.source}>
+                🔗 {rc.source.length > 80 ? rc.source.slice(0, 80) + "…" : rc.source}
+              </a>
+            ) : (
+              <span style={st("font-family:'IBM Plex Mono',monospace;font-size:12px;color:#3d6b54;")}>🔗 {rc.source}</span>
+            )}
             <span style={st("font-size:11px;color:#7d8e86;background:#eef4f1;border:1px solid #dce6e0;padding:2px 9px;border-radius:6px;")}>{rc.channel}</span>
             <span style={st("font-size:11px;color:#7d8e86;background:#eef4f1;border:1px solid #dce6e0;padding:2px 9px;border-radius:6px;")}>หมวด: {catVal}</span>
             {caseModel && (
