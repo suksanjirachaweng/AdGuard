@@ -121,15 +121,43 @@ function DiscoverySection({ onRun, running }) {
   );
 }
 
+const PAGE_SIZE = 10;
+
+function Pager({ page, total, onChange }) {
+  const pages = Math.ceil(total / PAGE_SIZE);
+  if (pages <= 1) return null;
+  const from = page * PAGE_SIZE + 1;
+  const to = Math.min((page + 1) * PAGE_SIZE, total);
+  const btn = (disabled) => ({
+    background: "none", border: "1.5px solid #e4ece8", borderRadius: 7,
+    padding: "4px 10px", fontFamily: "inherit", fontSize: 12,
+    color: disabled ? "#c8d8d0" : "#157347", cursor: disabled ? "default" : "pointer",
+  });
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 5, marginTop: 12 }}>
+      <span style={{ fontSize: 11.5, color: "#9aa8a1", fontFamily: "'IBM Plex Mono',monospace", marginRight: 4 }}>
+        {from}–{to} / {total}
+      </span>
+      <button style={btn(page === 0)} disabled={page === 0} onClick={() => onChange(0)}>«</button>
+      <button style={btn(page === 0)} disabled={page === 0} onClick={() => onChange(page - 1)}>‹</button>
+      <button style={btn(page >= pages - 1)} disabled={page >= pages - 1} onClick={() => onChange(page + 1)}>›</button>
+      <button style={btn(page >= pages - 1)} disabled={page >= pages - 1} onClick={() => onChange(pages - 1)}>»</button>
+    </div>
+  );
+}
+
 export default function Monitoring() {
   const { state, loadLeads, createLead, promoteLead, discardLead, deleteLead, runDiscovery, collectLead } = useApp();
   const { leads, leadsLoading, leadsError, leadBusyId, discoveryRunning } = state;
   const [tab, setTab] = useState("pending");
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(0);
   const [actionError, setActionError] = useState("");
   const [busyAction, setBusyAction] = useState(""); // "promote" | "collect" | "discard"
   const [prescreenWarn, setPrescreenWarn] = useState(null); // { id, message } — awaiting force confirm
 
   useEffect(() => { loadLeads(tab); }, [tab, loadLeads]);
+  useEffect(() => { setPage(0); }, [tab, search]);
 
   const handleDiscoveryRun = async () => {
     const result = await runDiscovery();
@@ -201,27 +229,49 @@ export default function Monitoring() {
         </div>
       )}
 
-      <div style={st("display:flex;gap:6px;margin-bottom:16px;")}>
-        {STATUS_TABS.map((s) => (
-          <button key={s.value} onClick={() => setTab(s.value)}
-            style={st("border:1.5px solid " + (tab === s.value ? "#2f9e6a" : "#e2e9e5") + ";background:" + (tab === s.value ? "#e9f4ee" : "#fff") + ";color:" + (tab === s.value ? "#157347" : "#5a6b63") + ";border-radius:8px;padding:7px 14px;font-family:inherit;font-size:12.5px;font-weight:600;cursor:pointer;")}>
-            {s.label}
-          </button>
-        ))}
+      {/* Filter bar: status dropdown + search */}
+      <div style={st("display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap;")}>
+        <select
+          value={tab}
+          onChange={(e) => setTab(e.target.value)}
+          style={st("border:1.5px solid #d8e6de;background:#fff;color:#16241d;border-radius:8px;padding:8px 32px 8px 12px;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;outline:none;appearance:none;background-image:url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23157347' stroke-width='1.8' fill='none' stroke-linecap='round'/%3E%3C/svg%3E\");background-repeat:no-repeat;background-position:right 10px center;")}
+        >
+          {STATUS_TABS.map((s) => (
+            <option key={s.value} value={s.value}>{s.label}</option>
+          ))}
+        </select>
+        <div style={{ flex: 1, minWidth: 200, position: "relative" }}>
+          <span style={{ position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)", fontSize: 13, color: "#9aa8a1", pointerEvents: "none" }}>🔍</span>
+          <input
+            type="text"
+            placeholder="ค้นหา URL หรือข้อความ…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            style={st("width:100%;padding:8px 12px 8px 32px;border:1.5px solid #d8e6de;border-radius:8px;font-family:inherit;font-size:13px;color:#16241d;outline:none;box-sizing:border-box;")}
+          />
+        </div>
       </div>
 
       {leadsError && (
         <div style={st("background:#fdecea;color:#c0392b;padding:14px 18px;border-radius:10px;font-size:13.5px;margin-bottom:16px;")}>⚠ {leadsError}</div>
       )}
 
+      {(() => {
+        const q = search.trim().toLowerCase();
+        const filtered = q
+          ? leads.filter((l) => l.url?.toLowerCase().includes(q) || l.rawText?.toLowerCase().includes(q))
+          : leads;
+        const paged = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+        return (
       <div style={st("background:#fff;border-radius:14px;border:1.5px solid #e8f0ec;overflow:hidden;")}>
         {leadsLoading ? (
           <div style={st("padding:60px;text-align:center;color:#6b7d75;font-size:14px;")}>กำลังโหลด…</div>
-        ) : leads.length === 0 ? (
-          <div style={st("padding:60px;text-align:center;color:#6b7d75;font-size:14px;")}>ไม่มีรายการในคิวนี้</div>
+        ) : filtered.length === 0 ? (
+          <div style={st("padding:60px;text-align:center;color:#6b7d75;font-size:14px;")}>{q ? "ไม่พบรายการที่ตรงกับคำค้นหา" : "ไม่มีรายการในคิวนี้"}</div>
         ) : (
+          <>
           <div>
-            {leads.map((l, i) => {
+            {paged.map((l, i) => {
               const p = platformInfo(l.platform);
               const busy = leadBusyId === l.id;
               return (
@@ -265,8 +315,12 @@ export default function Monitoring() {
               );
             })}
           </div>
+          <Pager page={page} total={filtered.length} onChange={setPage} />
+          </>
         )}
       </div>
+        );
+      })()}
     </div>
   );
 }
