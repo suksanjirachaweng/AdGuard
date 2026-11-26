@@ -537,6 +537,25 @@ function PdfListView({ docs, categories, sortBy, setSortBy, onOpen, onToggle }) 
     </div>
   );
 }
+// ─── Pager ────────────────────────────────────────────────────────────────────
+const BTN = { background: "none", border: "1.5px solid #e4ece8", borderRadius: 7, padding: "4px 11px", fontFamily: "inherit", fontSize: 13, cursor: "pointer", color: "#5a6b63", lineHeight: 1.4 };
+const BTN_DIS = { ...BTN, opacity: 0.35, cursor: "default" };
+function Pager({ page, total, pageSize, onChange }) {
+  const pages = Math.ceil(total / pageSize);
+  if (pages <= 1) return null;
+  const from = page * pageSize + 1;
+  const to   = Math.min((page + 1) * pageSize, total);
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 6, marginTop: 10 }}>
+      <span style={{ fontSize: 11.5, color: "#9aa8a1", fontFamily: "'IBM Plex Mono', monospace", marginRight: 4 }}>{from}–{to} / {total}</span>
+      <button onClick={() => onChange(0)}  disabled={page === 0}        style={page === 0        ? BTN_DIS : BTN}>«</button>
+      <button onClick={() => onChange(page - 1)} disabled={page === 0}  style={page === 0        ? BTN_DIS : BTN}>‹</button>
+      <button onClick={() => onChange(page + 1)} disabled={page >= pages - 1} style={page >= pages-1 ? BTN_DIS : BTN}>›</button>
+      <button onClick={() => onChange(pages - 1)} disabled={page >= pages - 1} style={page >= pages-1 ? BTN_DIS : BTN}>»</button>
+    </div>
+  );
+}
+
 // ─── ContextScreen ────────────────────────────────────────────────────────────
 export default function ContextScreen() {
   const {
@@ -562,11 +581,21 @@ export default function ContextScreen() {
   const docFileRef = useRef(null);
   const pollRef = useRef(null);
 
-  const [search,       setSearch]       = useState("");
-  const [filterCat,    setFilterCat]    = useState("all");
-  const [filterStatus, setFilterStatus] = useState("all");
-  const [sortBy,       setSortBy]       = useState("newest");
-  const [viewMode,     setViewMode]     = useState("list");
+  // Section 1 — บริบท AI
+  const [s1Search,       setS1Search]       = useState("");
+  const [s1FilterType,   setS1FilterType]   = useState("all");
+  const [s1FilterStatus, setS1FilterStatus] = useState("all");
+  const [s1SortBy,       setS1SortBy]       = useState("newest");
+  const [s1Page,         setS1Page]         = useState(0);
+  // Section 2 — คลังความรู้
+  const [s2Search,       setS2Search]       = useState("");
+  const [s2FilterCat,    setS2FilterCat]    = useState("all");
+  const [s2FilterStatus, setS2FilterStatus] = useState("all");
+  const [s2SortBy,       setS2SortBy]       = useState("chunks");
+  const [s2Page,         setS2Page]         = useState(0);
+  // Section 3 — คลังความรู้ อย.
+  const [s3Page,         setS3Page]         = useState(0);
+  const [viewMode,       setViewMode]       = useState("list");
 
   const isAdmin = state.user?.role === "admin";
   const crawling = crawlStatus?.status === "scraping" || crawlStatus?.status === "starting";
@@ -630,34 +659,34 @@ export default function ContextScreen() {
 
   const filteredManual = useMemo(() => {
     let list = [...items];
-    if (filterStatus !== "all") list = list.filter(x => filterStatus === "active" ? x.active : !x.active);
-    const q = search.trim().toLowerCase();
+    if (s1FilterType   !== "all") list = list.filter(x => x.type === s1FilterType);
+    if (s1FilterStatus !== "all") list = list.filter(x => s1FilterStatus === "active" ? x.active : !x.active);
+    const q = s1Search.trim().toLowerCase();
     if (q) list = list.filter(x => (x.title || "").toLowerCase().includes(q) || (x.body || "").toLowerCase().includes(q));
     list.sort((a, b) => {
-      if (sortBy === "name")   return (a.title || "").localeCompare(b.title || "", "th");
-      if (sortBy === "name_z") return (b.title || "").localeCompare(a.title || "", "th");
+      if (s1SortBy === "name")   return (a.title || "").localeCompare(b.title || "", "th");
+      if (s1SortBy === "name_z") return (b.title || "").localeCompare(a.title || "", "th");
       return 0;
     });
     return list;
-  }, [items, filterStatus, search, sortBy]);
+  }, [items, s1FilterType, s1FilterStatus, s1Search, s1SortBy]);
 
   const filteredPdf = useMemo(() => {
     let list = [...knowledgeDocs];
-    if (filterCat !== "all")    list = list.filter(x => (x.category || "general") === filterCat);
-    if (filterStatus !== "all") list = list.filter(x => filterStatus === "active" ? x.active : !x.active);
-    const q = search.trim().toLowerCase();
+    if (s2FilterCat    !== "all") list = list.filter(x => (x.category || "general") === s2FilterCat);
+    if (s2FilterStatus !== "all") list = list.filter(x => s2FilterStatus === "active" ? x.active : !x.active);
+    const q = s2Search.trim().toLowerCase();
     if (q) list = list.filter(x => (x.title || "").toLowerCase().includes(q) || (x.sourceFile || "").toLowerCase().includes(q));
     list.sort((a, b) => {
-      if (sortBy === "name")     return (a.title || "").localeCompare(b.title || "", "th");
-      if (sortBy === "name_z")   return (b.title || "").localeCompare(a.title || "", "th");
-      if (sortBy === "category") return (a.category || "").localeCompare(b.category || "");
-      if (sortBy === "chunks")   return ((b.chunkCount || 0) - (a.chunkCount || 0));
+      if (s2SortBy === "name")     return (a.title || "").localeCompare(b.title || "", "th");
+      if (s2SortBy === "name_z")   return (b.title || "").localeCompare(a.title || "", "th");
+      if (s2SortBy === "category") return (a.category || "").localeCompare(b.category || "");
+      if (s2SortBy === "chunks")   return ((b.chunkCount || 0) - (a.chunkCount || 0));
       return 0;
     });
     return list;
-  }, [knowledgeDocs, filterCat, filterStatus, search, sortBy]);
+  }, [knowledgeDocs, s2FilterCat, s2FilterStatus, s2Search, s2SortBy]);
 
-  const hasFilters = search || filterCat !== "all" || filterStatus !== "all";
 
   const handleDelete = async item => { setOpenDoc(null); await deleteContext(item.id); };
   const handleAttach = async (id, file) => {
@@ -714,98 +743,6 @@ export default function ContextScreen() {
         </div>
       </div>
 
-      {/* ── Toolbar — single row ───────────────────────────────────────────── */}
-      <div style={{ background: "#fff", border: "1.5px solid #e4ece8", borderRadius: 12, padding: "10px 14px", marginBottom: 11, display: "flex", alignItems: "center", gap: 8 }}>
-
-        {/* Search */}
-        <div style={{ flex: 1, position: "relative", minWidth: 0 }}>
-          <span style={st("position:absolute;left:11px;top:50%;transform:translateY(-50%);font-size:13px;color:#9aa8a1;pointer-events:none;")}>🔍</span>
-          <input
-            placeholder="ค้นหาชื่อเอกสาร, ไฟล์, เนื้อหา…"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            style={st("width:100%;box-sizing:border-box;border:1.5px solid " + (search ? "#2f9e6a" : "#e4ece8") + ";border-radius:9px;padding:8px 28px 8px 34px;font-family:inherit;font-size:12.5px;color:#16241d;outline:none;transition:border-color .15s;")}
-            onFocus={e => e.target.style.borderColor="#2f9e6a"}
-            onBlur={e => e.target.style.borderColor=search ? "#2f9e6a" : "#e4ece8"}
-          />
-          {search && (
-            <button onClick={() => setSearch("")}
-              style={st("position:absolute;right:9px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:16px;color:#9aa8a1;line-height:1;padding:0;")}>×</button>
-          )}
-        </div>
-
-        {/* Divider */}
-        <div style={st("width:1px;height:22px;background:#e4ece8;flex-shrink:0;")} />
-
-        {/* สถานะ dropdown */}
-        <select
-          value={filterStatus}
-          onChange={e => setFilterStatus(e.target.value)}
-          style={{
-            border: `1.5px solid ${filterStatus !== "all" ? "#2f9e6a" : "#e4ece8"}`,
-            borderRadius: 9, padding: "7px 10px", fontFamily: "inherit", fontSize: 12,
-            color: filterStatus !== "all" ? "#157347" : "#5a6b63",
-            background: filterStatus !== "all" ? "#f0f7f2" : "#fafcfb",
-            cursor: "pointer", outline: "none", flexShrink: 0,
-          }}>
-          <option value="all">สถานะ · ทั้งหมด</option>
-          <option value="active">สถานะ · ใช้งานอยู่</option>
-          <option value="inactive">สถานะ · ปิด</option>
-        </select>
-
-        {/* หมวด dropdown — filters the คลังความรู้ section */}
-        {visibleCats.length > 0 && (
-          <select
-            value={filterCat}
-            onChange={e => setFilterCat(e.target.value)}
-            style={{
-              border: `1.5px solid ${filterCat !== "all" ? "#2f9e6a" : "#e4ece8"}`,
-              borderRadius: 9, padding: "7px 10px", fontFamily: "inherit", fontSize: 12,
-              color: filterCat !== "all" ? "#157347" : "#5a6b63",
-              background: filterCat !== "all" ? "#f0f7f2" : "#fafcfb",
-              cursor: "pointer", outline: "none", flexShrink: 0,
-            }}>
-            <option value="all">หมวด · ทั้งหมด ({catCounts.all || 0})</option>
-            {visibleCats.map(c => (
-              <option key={c.slug} value={c.slug}>หมวด · {c.label} ({catCounts[c.slug] || 0})</option>
-            ))}
-          </select>
-        )}
-
-        {/* Divider */}
-        <div style={st("width:1px;height:22px;background:#e4ece8;flex-shrink:0;")} />
-
-        {/* Sort */}
-        <select value={sortBy} onChange={e => setSortBy(e.target.value)}
-          style={st("border:1.5px solid #e4ece8;border-radius:9px;padding:7px 10px;font-family:inherit;font-size:12px;color:#5a6b63;background:#fafcfb;cursor:pointer;outline:none;flex-shrink:0;")}>
-          <option value="newest">เรียง · ล่าสุด</option>
-          <option value="name">เรียง · ชื่อ A→Z</option>
-          <option value="name_z">เรียง · ชื่อ Z→A</option>
-          <option value="category">เรียง · หมวด</option>
-          <option value="chunks">เรียง · Chunks</option>
-        </select>
-
-        {/* View toggle */}
-        <div style={st("display:flex;border:1.5px solid #e4ece8;border-radius:9px;overflow:hidden;flex-shrink:0;")}>
-          {[["grid", "⊞"], ["list", "☰"]].map(([v, ic]) => (
-            <button key={v} onClick={() => setViewMode(v)}
-              style={st("background:" + (viewMode === v ? "#157347" : "#fafcfb") + ";color:" + (viewMode === v ? "#fff" : "#7d8e86") + ";border:none;padding:7px 12px;font-size:15px;cursor:pointer;transition:all .15s;")}>
-              {ic}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* ── Filter clear bar ───────────────────────────────────────────────── */}
-      {hasFilters && (
-        <div style={st("display:flex;align-items:center;justify-content:flex-end;margin-bottom:9px;padding:0 2px;")}>
-          <button onClick={() => { setSearch(""); setFilterCat("all"); setFilterStatus("all"); }}
-            style={st("background:none;border:none;color:#157347;font-family:inherit;font-size:11.5px;font-weight:600;cursor:pointer;text-decoration:underline;padding:0;")}>
-            ล้างตัวกรอง
-          </button>
-        </div>
-      )}
-
       {/* ── Section 1: บริบท AI ────────────────────────────────────────────── */}
       <div style={{ marginBottom: 20, background: "#fff", border: "1.5px solid #e4ece8", borderRadius: 14, padding: "18px 20px" }}>
         <SectionHeader
@@ -821,18 +758,56 @@ export default function ContextScreen() {
             >＋ เพิ่มบริบท</button>
           }
         />
+        {/* Section 1 mini toolbar */}
+        <div style={{ display: "flex", gap: 6, margin: "10px 0 10px", flexWrap: "wrap", alignItems: "center" }}>
+          <div style={{ flex: 1, minWidth: 160, position: "relative" }}>
+            <span style={{ position: "absolute", left: 9, top: "50%", transform: "translateY(-50%)", fontSize: 12, color: "#9aa8a1", pointerEvents: "none" }}>🔍</span>
+            <input value={s1Search} onChange={e => { setS1Search(e.target.value); setS1Page(0); }}
+              placeholder="ค้นหาชื่อ, เนื้อหา…"
+              style={{ width: "100%", boxSizing: "border-box", border: "1.5px solid " + (s1Search ? "#2f9e6a" : "#e4ece8"), borderRadius: 8, padding: "6px 24px 6px 30px", fontFamily: "inherit", fontSize: 12, color: "#16241d", outline: "none" }} />
+            {s1Search && <button onClick={() => { setS1Search(""); setS1Page(0); }} style={{ position: "absolute", right: 7, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", fontSize: 14, color: "#9aa8a1", padding: 0, lineHeight: 1 }}>×</button>}
+          </div>
+          <select value={s1FilterType} onChange={e => { setS1FilterType(e.target.value); setS1Page(0); }}
+            style={{ border: "1.5px solid " + (s1FilterType !== "all" ? "#2f9e6a" : "#e4ece8"), borderRadius: 8, padding: "6px 10px", fontFamily: "inherit", fontSize: 12, color: s1FilterType !== "all" ? "#157347" : "#5a6b63", background: s1FilterType !== "all" ? "#f0f7f2" : "#fafcfb", cursor: "pointer", outline: "none" }}>
+            <option value="all">ประเภท · ทั้งหมด</option>
+            {Object.entries(ctxTypes).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+          </select>
+          <select value={s1FilterStatus} onChange={e => { setS1FilterStatus(e.target.value); setS1Page(0); }}
+            style={{ border: "1.5px solid " + (s1FilterStatus !== "all" ? "#2f9e6a" : "#e4ece8"), borderRadius: 8, padding: "6px 10px", fontFamily: "inherit", fontSize: 12, color: s1FilterStatus !== "all" ? "#157347" : "#5a6b63", background: s1FilterStatus !== "all" ? "#f0f7f2" : "#fafcfb", cursor: "pointer", outline: "none" }}>
+            <option value="all">สถานะ · ทั้งหมด</option>
+            <option value="active">ใช้งานอยู่</option>
+            <option value="inactive">ปิด</option>
+          </select>
+          <select value={s1SortBy} onChange={e => { setS1SortBy(e.target.value); setS1Page(0); }}
+            style={{ border: "1.5px solid #e4ece8", borderRadius: 8, padding: "6px 10px", fontFamily: "inherit", fontSize: 12, color: "#5a6b63", background: "#fafcfb", cursor: "pointer", outline: "none" }}>
+            <option value="newest">ล่าสุด</option>
+            <option value="name">ชื่อ A→Z</option>
+            <option value="name_z">ชื่อ Z→A</option>
+          </select>
+          <div style={{ display: "flex", border: "1.5px solid #e4ece8", borderRadius: 8, overflow: "hidden" }}>
+            {[["grid","⊞"],["list","☰"]].map(([v,ic]) => (
+              <button key={v} onClick={() => setViewMode(v)}
+                style={{ background: viewMode===v ? "#157347" : "#fafcfb", color: viewMode===v ? "#fff" : "#7d8e86", border: "none", padding: "5px 11px", fontSize: 14, cursor: "pointer" }}>{ic}</button>
+            ))}
+          </div>
+        </div>
+        {(s1Search || s1FilterType !== "all" || s1FilterStatus !== "all") && (
+          <button onClick={() => { setS1Search(""); setS1FilterType("all"); setS1FilterStatus("all"); setS1Page(0); }}
+            style={{ background: "none", border: "none", color: "#157347", fontSize: 11, cursor: "pointer", textDecoration: "underline", padding: "0 0 8px", display: "block" }}>ล้างตัวกรอง</button>
+        )}
         {filteredManual.length === 0 ? (
-          <EmptySection hasSearch={!!search} />
+          <EmptySection hasSearch={!!(s1Search || s1FilterType !== "all")} />
         ) : viewMode === "grid" ? (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 11 }}>
-            {filteredManual.map(item => (
+            {filteredManual.slice(s1Page * 10, (s1Page + 1) * 10).map(item => (
               <ManualCard key={item.id} item={item} onOpen={setOpenDoc} onToggle={toggleContext} />
             ))}
           </div>
         ) : (
-          <ManualListView items={filteredManual} sortBy={sortBy} setSortBy={setSortBy}
+          <ManualListView items={filteredManual.slice(s1Page * 10, (s1Page + 1) * 10)} sortBy={s1SortBy} setSortBy={v => { setS1SortBy(v); setS1Page(0); }}
             onOpen={setOpenDoc} onToggle={toggleContext} />
         )}
+        <Pager page={s1Page} total={filteredManual.length} pageSize={10} onChange={setS1Page} />
       </div>
 
       {/* ── Section 2: คลังความรู้ ─────────────────────────────────────────── */}
@@ -852,18 +827,59 @@ export default function ContextScreen() {
           )}
         />
         {docUploadError && <div style={st("padding:8px 12px;background:#fdecea;border-radius:8px;color:#c0392b;font-size:12px;margin-bottom:10px;")}>{docUploadError}</div>}
+        {/* Section 2 mini toolbar */}
+        <div style={{ display: "flex", gap: 6, margin: "10px 0 10px", flexWrap: "wrap", alignItems: "center" }}>
+          <div style={{ flex: 1, minWidth: 160, position: "relative" }}>
+            <span style={{ position: "absolute", left: 9, top: "50%", transform: "translateY(-50%)", fontSize: 12, color: "#9aa8a1", pointerEvents: "none" }}>🔍</span>
+            <input value={s2Search} onChange={e => { setS2Search(e.target.value); setS2Page(0); }}
+              placeholder="ค้นหาชื่อเอกสาร, ไฟล์…"
+              style={{ width: "100%", boxSizing: "border-box", border: "1.5px solid " + (s2Search ? "#2f9e6a" : "#e4ece8"), borderRadius: 8, padding: "6px 24px 6px 30px", fontFamily: "inherit", fontSize: 12, color: "#16241d", outline: "none" }} />
+            {s2Search && <button onClick={() => { setS2Search(""); setS2Page(0); }} style={{ position: "absolute", right: 7, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", fontSize: 14, color: "#9aa8a1", padding: 0, lineHeight: 1 }}>×</button>}
+          </div>
+          {visibleCats.length > 0 && (
+            <select value={s2FilterCat} onChange={e => { setS2FilterCat(e.target.value); setS2Page(0); }}
+              style={{ border: "1.5px solid " + (s2FilterCat !== "all" ? "#2f9e6a" : "#e4ece8"), borderRadius: 8, padding: "6px 10px", fontFamily: "inherit", fontSize: 12, color: s2FilterCat !== "all" ? "#157347" : "#5a6b63", background: s2FilterCat !== "all" ? "#f0f7f2" : "#fafcfb", cursor: "pointer", outline: "none" }}>
+              <option value="all">หมวด · ทั้งหมด ({catCounts.all || 0})</option>
+              {visibleCats.map(c => <option key={c.slug} value={c.slug}>หมวด · {c.label} ({catCounts[c.slug] || 0})</option>)}
+            </select>
+          )}
+          <select value={s2FilterStatus} onChange={e => { setS2FilterStatus(e.target.value); setS2Page(0); }}
+            style={{ border: "1.5px solid " + (s2FilterStatus !== "all" ? "#2f9e6a" : "#e4ece8"), borderRadius: 8, padding: "6px 10px", fontFamily: "inherit", fontSize: 12, color: s2FilterStatus !== "all" ? "#157347" : "#5a6b63", background: s2FilterStatus !== "all" ? "#f0f7f2" : "#fafcfb", cursor: "pointer", outline: "none" }}>
+            <option value="all">สถานะ · ทั้งหมด</option>
+            <option value="active">ใช้งานอยู่</option>
+            <option value="inactive">ปิด</option>
+          </select>
+          <select value={s2SortBy} onChange={e => { setS2SortBy(e.target.value); setS2Page(0); }}
+            style={{ border: "1.5px solid #e4ece8", borderRadius: 8, padding: "6px 10px", fontFamily: "inherit", fontSize: 12, color: "#5a6b63", background: "#fafcfb", cursor: "pointer", outline: "none" }}>
+            <option value="chunks">Chunks มากสุด</option>
+            <option value="name">ชื่อ A→Z</option>
+            <option value="name_z">ชื่อ Z→A</option>
+            <option value="category">หมวดหมู่</option>
+          </select>
+          <div style={{ display: "flex", border: "1.5px solid #e4ece8", borderRadius: 8, overflow: "hidden" }}>
+            {[["grid","⊞"],["list","☰"]].map(([v,ic]) => (
+              <button key={v} onClick={() => setViewMode(v)}
+                style={{ background: viewMode===v ? "#157347" : "#fafcfb", color: viewMode===v ? "#fff" : "#7d8e86", border: "none", padding: "5px 11px", fontSize: 14, cursor: "pointer" }}>{ic}</button>
+            ))}
+          </div>
+        </div>
+        {(s2Search || s2FilterCat !== "all" || s2FilterStatus !== "all") && (
+          <button onClick={() => { setS2Search(""); setS2FilterCat("all"); setS2FilterStatus("all"); setS2Page(0); }}
+            style={{ background: "none", border: "none", color: "#157347", fontSize: 11, cursor: "pointer", textDecoration: "underline", padding: "0 0 8px", display: "block" }}>ล้างตัวกรอง</button>
+        )}
         {filteredPdf.length === 0 ? (
-          <EmptySection hasSearch={!!search} />
+          <EmptySection hasSearch={!!(s2Search || s2FilterCat !== "all")} />
         ) : viewMode === "grid" ? (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 11 }}>
-            {filteredPdf.map(doc => (
+            {filteredPdf.slice(s2Page * 10, (s2Page + 1) * 10).map(doc => (
               <PdfCard key={doc.id} doc={doc} categories={categories} onOpen={setOpenKnowledgeDoc} onToggle={toggleKnowledgeDoc} />
             ))}
           </div>
         ) : (
-          <PdfListView docs={filteredPdf} categories={categories} sortBy={sortBy} setSortBy={setSortBy}
+          <PdfListView docs={filteredPdf.slice(s2Page * 10, (s2Page + 1) * 10)} categories={categories} sortBy={s2SortBy} setSortBy={v => { setS2SortBy(v); setS2Page(0); }}
             onOpen={setOpenKnowledgeDoc} onToggle={toggleKnowledgeDoc} />
         )}
+        <Pager page={s2Page} total={filteredPdf.length} pageSize={10} onChange={setS2Page} />
       </div>
 
       {/* ── Section 3: คลังความรู้ อย. ─────────────────────────────────────── */}
@@ -925,9 +941,9 @@ export default function ContextScreen() {
         {/* Alert list */}
         {!alertsLoading && alerts.length > 0 && (
           <div style={{ background: "#fff", border: "1.5px solid #e4ece8", borderRadius: 11, overflow: "hidden" }}>
-            {alerts.map((a, i) => (
+            {alerts.slice(s3Page * 10, (s3Page + 1) * 10).map((a, i, arr) => (
               <div key={a.id} onClick={() => setOpenAlert(a)}
-                style={{ display: "flex", alignItems: "flex-start", padding: "11px 16px", borderBottom: i < alerts.length - 1 ? "1px solid #f0f4f2" : "none", cursor: "pointer", gap: 12, transition: "background .12s" }}
+                style={{ display: "flex", alignItems: "flex-start", padding: "11px 16px", borderBottom: i < arr.length - 1 ? "1px solid #f0f4f2" : "none", cursor: "pointer", gap: 12, transition: "background .12s" }}
                 onMouseEnter={e => e.currentTarget.style.background="#f8faf9"}
                 onMouseLeave={e => e.currentTarget.style.background="transparent"}
               >
@@ -949,6 +965,7 @@ export default function ContextScreen() {
             ))}
           </div>
         )}
+        <Pager page={s3Page} total={alerts.length} pageSize={10} onChange={setS3Page} />
       </div>
 
       {/* ── Modals ─────────────────────────────────────────────────────────── */}
