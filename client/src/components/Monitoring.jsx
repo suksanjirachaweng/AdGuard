@@ -135,7 +135,7 @@ function DiscoverySection({ onRun, running, isAdmin }) {
   };
 
   const scheduleLabel = () => {
-    if (!schedule) return "กำลังโหลด…";
+    if (!schedule.hour && schedule.hour !== 0) return "กำลังโหลด…";
     if (!schedule.enabled) return "ปิดการทำงาน";
     const h = String(schedule.hour).padStart(2, "0");
     const m = String(schedule.minute).padStart(2, "0");
