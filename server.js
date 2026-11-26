@@ -479,8 +479,8 @@ app.post("/api/discovery/run", requireAuth, wrap(async (req, res) => {
 }));
 
 // ---- AI context / knowledge base (auth required) ------------------------
-app.get("/api/context", requireAuth, wrap(async (_req, res) => res.json({ items: await store.listContext() })));
-app.post("/api/context", requireAuth, wrap(async (req, res) => {
+app.get("/api/knowledge/context", requireAuth, wrap(async (_req, res) => res.json({ items: await store.listContext() })));
+app.post("/api/knowledge/context", requireAuth, wrap(async (req, res) => {
   const { type = "law", title = "", body = "", meta = "" } = req.body || {};
   if (!title.trim()) return res.status(400).json({ error: "ต้องระบุหัวข้อ" });
   res.json(await store.insertContext({ type, title: title.trim(), body: body.trim() || "—", meta }));
@@ -510,7 +510,7 @@ async function extractFileText(file) {
 // as the context item's body, so the complete document lives in the DB
 // (not just a short summary).
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } });
-app.post("/api/context/upload", requireAuth, upload.single("file"), wrap(async (req, res) => {
+app.post("/api/knowledge/context/upload", requireAuth, upload.single("file"), wrap(async (req, res) => {
   if (!req.file) return res.status(400).json({ error: "ไม่พบไฟล์ที่อัปโหลด" });
   const { type = "doc", title = "" } = req.body || {};
   const extracted = await extractFileText(req.file);
@@ -528,7 +528,7 @@ app.post("/api/context/upload", requireAuth, upload.single("file"), wrap(async (
 
 // Attach/replace a real document on an *existing* context item — for legacy
 // entries that only ever had a short seed description, not a full document.
-app.patch("/api/context/:id/upload", requireAuth, upload.single("file"), wrap(async (req, res) => {
+app.patch("/api/knowledge/context/:id/upload", requireAuth, upload.single("file"), wrap(async (req, res) => {
   if (!req.file) return res.status(400).json({ error: "ไม่พบไฟล์ที่อัปโหลด" });
   const extracted = await extractFileText(req.file);
   if (!extracted) return res.status(400).json({ error: "รองรับเฉพาะไฟล์ PDF, TXT, MD, CSV" });
@@ -538,12 +538,12 @@ app.patch("/api/context/:id/upload", requireAuth, upload.single("file"), wrap(as
   if (!item) return res.status(404).json({ error: "ไม่พบบริบท" });
   res.json(item);
 }));
-app.patch("/api/context/:id/toggle", requireAuth, wrap(async (req, res) => {
+app.patch("/api/knowledge/context/:id/toggle", requireAuth, wrap(async (req, res) => {
   const c = await store.toggleContext(Number(req.params.id));
   if (!c) return res.status(404).json({ error: "ไม่พบบริบท" });
   res.json(c);
 }));
-app.delete("/api/context/:id", requireAuth, wrap(async (req, res) => {
+app.delete("/api/knowledge/context/:id", requireAuth, wrap(async (req, res) => {
   const ok = await store.deleteContext(Number(req.params.id));
   if (!ok) return res.status(404).json({ error: "ไม่พบบริบท" });
   res.json({ ok: true });

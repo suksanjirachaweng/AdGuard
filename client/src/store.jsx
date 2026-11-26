@@ -103,7 +103,7 @@ export function AppProvider({ children }) {
 
   const loadContext = useCallback(async () => {
     try {
-      const r = await fetch("/api/context");
+      const r = await fetch("/api/knowledge/context");
       if (!r.ok) return;
       const d = await r.json();
       set({ contextItems: d.items });
@@ -325,7 +325,7 @@ export function AppProvider({ children }) {
       fd.append("type", state.draftType);
       if (state.draftTitle.trim()) fd.append("title", state.draftTitle.trim());
       try {
-        const r = await fetch("/api/context/upload", { method: "POST", body: fd });
+        const r = await fetch("/api/knowledge/context/upload", { method: "POST", body: fd });
         const item = await r.json();
         if (!r.ok) { set({ contextSaving: false, draftFileError: item.error || "อัปโหลดไม่สำเร็จ" }); return; }
         set({ showAddContext: false, contextSaving: false, draftFile: null, contextItems: [{ ...item, active: !!item.active }, ...state.contextItems] });
@@ -341,7 +341,7 @@ export function AppProvider({ children }) {
     set({ showAddContext: false });
     navigate(pathFor("context"));
     try {
-      const r = await fetch("/api/context", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      const r = await fetch("/api/knowledge/context", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       if (r.ok) { const item = await r.json(); set({ contextItems: [{ ...item, active: !!item.active }, ...state.contextItems] }); }
     } catch {
       set({ contextItems: [{ id: Date.now(), ...payload, active: true }, ...state.contextItems] });
@@ -349,14 +349,14 @@ export function AppProvider({ children }) {
   }, [set, navigate, state.draftTitle, state.draftBody, state.draftType, state.draftFile, state.contextItems]);
 
   const deleteContext = useCallback(async (id) => {
-    await fetch("/api/context/" + id, { method: "DELETE" });
+    await fetch("/api/knowledge/context/" + id, { method: "DELETE" });
     set({ contextItems: state.contextItems.filter((c) => c.id !== id) });
   }, [set, state.contextItems]);
 
   const attachContextFile = useCallback(async (id, file) => {
     const fd = new FormData();
     fd.append("file", file);
-    const r = await fetch("/api/context/" + id + "/upload", { method: "PATCH", body: fd });
+    const r = await fetch("/api/knowledge/context/" + id + "/upload", { method: "PATCH", body: fd });
     const item = await r.json();
     if (!r.ok) throw new Error(item.error || "อัปโหลดไม่สำเร็จ");
     set({ contextItems: state.contextItems.map((c) => (c.id === id ? { ...c, ...item } : c)) });
@@ -365,7 +365,7 @@ export function AppProvider({ children }) {
 
   const toggleContext = useCallback(async (id) => {
     set({ contextItems: state.contextItems.map((c) => (c.id === id ? { ...c, active: !c.active } : c)) });
-    try { await fetch("/api/context/" + id + "/toggle", { method: "PATCH" }); } catch { /* optimistic */ }
+    try { await fetch("/api/knowledge/context/" + id + "/toggle", { method: "PATCH" }); } catch { /* optimistic */ }
   }, [set, state.contextItems]);
 
   // ---- auth ----
