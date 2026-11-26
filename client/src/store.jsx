@@ -401,7 +401,7 @@ export function AppProvider({ children }) {
     navigate("/");
   }, [set, navigate]);
 
-  // ---- bootstrap ----
+  // ---- bootstrap ---- (DEMO)
   useEffect(() => { checkAuth(); /* eslint-disable-next-line */ }, []);
   useEffect(() => () => { if (ref.current.timer) clearInterval(ref.current.timer); }, []);
 

@@ -1,4 +1,4 @@
-import { useRef, useState, useMemo } from "react";
+import { useRef, useState, useMemo, useEffect } from "react";
 import { st } from "../lib/st.js";
 import { ctxTypes } from "../lib/data.js";
 import { useApp } from "../store.jsx";
@@ -543,21 +543,50 @@ export default function ContextScreen() {
     state, openAddContext, toggleContext, deleteContext, attachContextFile,
     toggleKnowledgeDoc, updateKnowledgeDoc, deleteKnowledgeDoc,
     createCategory, updateCategory, deleteCategory,
+    startCrawl, pollCrawl, loadAlerts, deleteAlert,
   } = useApp();
 
   const items         = state.contextItems;
   const knowledgeDocs = state.knowledgeDocs || [];
   const categories    = state.categories || [];
+  const { alerts = [], alertsTotal = 0, alertsLoading, alertsError,
+          crawlJobId, crawlStatus, crawlPolling } = state;
 
   const [openDoc,            setOpenDoc]            = useState(null);
   const [openKnowledgeDoc,   setOpenKnowledgeDoc]   = useState(null);
   const [showCategoryManager, setShowCategoryManager] = useState(false);
+  const [openAlert,          setOpenAlert]          = useState(null);
+  const [alertSearch,        setAlertSearch]        = useState("");
+  const pollRef = useRef(null);
 
   const [search,       setSearch]       = useState("");
   const [filterCat,    setFilterCat]    = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
   const [sortBy,       setSortBy]       = useState("newest");
   const [viewMode,     setViewMode]     = useState("list");
+
+  const isAdmin = state.user?.role === "admin";
+  const crawling = crawlStatus?.status === "scraping" || crawlStatus?.status === "starting";
+  const crawlDone = crawlStatus?.status === "completed";
+  const crawlFailed = crawlStatus?.status === "failed";
+
+  useEffect(() => { loadAlerts(""); }, []);
+
+  useEffect(() => {
+    if (!crawlPolling || !crawlJobId) return;
+    pollRef.current = setInterval(() => pollCrawl(crawlJobId), 4000);
+    return () => clearInterval(pollRef.current);
+  }, [crawlPolling, crawlJobId, pollCrawl]);
+
+  const handleCrawl = async () => {
+    if (!window.confirm("เริ่มดึงข้อมูลจาก safetyalert.fda.moph.go.th?\n(อาจใช้เวลา 5–15 นาที)")) return;
+    await startCrawl();
+  };
+
+  const handleAlertSearch = (v) => {
+    setAlertSearch(v);
+    loadAlerts(v);
+  };
 
   const activeManual   = items.filter(c => c.active).length;
   const activePdf      = knowledgeDocs.filter(d => d.active).length;
@@ -805,6 +834,91 @@ export default function ContextScreen() {
         )}
       </div>
 
+      {/* ── Section 3: คลังความรู้ อย. ─────────────────────────────────────── */}
+      <div style={{ marginTop: 24 }}>
+        <SectionHeader
+          title="🏛 คลังความรู้ อย."
+          description={`ประกาศเตือนภัย ฉลาก กฎหมายจาก safetyalert.fda.moph.go.th${alertsTotal > 0 ? ` · ${alertsTotal.toLocaleString()} รายการ` : ""}`}
+          count={alerts.length}
+          total={alertsTotal || alerts.length}
+          action={isAdmin && (
+            <button onClick={handleCrawl} disabled={crawling}
+              style={st(`display:flex;align-items:center;gap:5px;background:${crawling ? "#6b7d75" : "#157347"};color:#fff;border:none;border-radius:8px;padding:7px 14px;font-family:inherit;font-size:12px;font-weight:700;cursor:${crawling ? "default" : "pointer"};"`)}>
+              {crawling ? "⏳ กำลังดึงข้อมูล…" : "🔄 ดึงข้อมูลใหม่จากเว็บ อย."}
+            </button>
+          )}
+        />
+
+        {/* Crawl status bar */}
+        {crawlStatus && (
+          <div style={st(`margin-bottom:12px;padding:12px 16px;border-radius:10px;background:${crawlDone ? "#e9f4ee" : crawlFailed ? "#fdecea" : "#fff8e1"};border:1px solid ${crawlDone ? "#c9e6d4" : crawlFailed ? "#f5c6bf" : "#ffe082"}`)}>
+            {crawling && (
+              <>
+                <div style={st("font-size:13px;font-weight:600;color:#0f3026;margin-bottom:5px")}>
+                  กำลังดึงข้อมูลจากเว็บ อย.… นำเข้าแล้ว {crawlStatus.imported || 0} หน้า{crawlStatus.total > 0 ? ` / ${crawlStatus.total}` : ""}
+                </div>
+                <div style={st("height:5px;background:#e0e0e0;border-radius:3px;overflow:hidden")}>
+                  <div style={{ height: "100%", background: "#157347", borderRadius: 3, width: crawlStatus.total > 0 ? `${Math.min(100, Math.round((crawlStatus.done / crawlStatus.total) * 100))}%` : "30%", transition: "width 1s" }} />
+                </div>
+              </>
+            )}
+            {crawlDone && <div style={st("font-size:13px;color:#157347;font-weight:600")}>✓ ดึงข้อมูลสำเร็จ — นำเข้า {crawlStatus.imported || 0} รายการ{crawlStatus.errors > 0 ? ` (ข้ามไป ${crawlStatus.errors} รายการ)` : ""}</div>}
+            {crawlFailed && <div style={st("font-size:13px;color:#c0392b;font-weight:600")}>✗ ดึงข้อมูลไม่สำเร็จ{crawlStatus.error ? ` — ${crawlStatus.error}` : ""}</div>}
+          </div>
+        )}
+
+        {/* Alert search */}
+        <div style={st("margin-bottom:10px;position:relative;")}>
+          <span style={st("position:absolute;left:11px;top:50%;transform:translateY(-50%);font-size:13px;color:#9aa8a1;pointer-events:none;")}>🔍</span>
+          <input value={alertSearch} onChange={e => handleAlertSearch(e.target.value)}
+            placeholder="ค้นหาประกาศเตือนภัย ชื่อผลิตภัณฑ์ บริษัท…"
+            style={st("width:100%;box-sizing:border-box;border:1.5px solid " + (alertSearch ? "#2f9e6a" : "#e4ece8") + ";border-radius:9px;padding:8px 28px 8px 34px;font-family:inherit;font-size:12.5px;color:#16241d;outline:none;transition:border-color .15s;")}
+            onFocus={e => e.target.style.borderColor="#2f9e6a"}
+            onBlur={e => e.target.style.borderColor=alertSearch ? "#2f9e6a" : "#e4ece8"}
+          />
+          {alertSearch && <button onClick={() => handleAlertSearch("")} style={st("position:absolute;right:9px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:16px;color:#9aa8a1;line-height:1;padding:0;")}>×</button>}
+        </div>
+
+        {/* Error */}
+        {alertsError && <div style={st("padding:10px 14px;background:#fdecea;border-radius:8px;color:#c0392b;font-size:12.5px;margin-bottom:10px;")}>{alertsError}</div>}
+
+        {/* Loading */}
+        {alertsLoading && <div style={st("text-align:center;padding:28px;color:#9aa8a1;font-size:13px;")}>กำลังโหลด…</div>}
+
+        {/* Empty */}
+        {!alertsLoading && alerts.length === 0 && (
+          <EmptySection hasSearch={!!alertSearch} />
+        )}
+
+        {/* Alert list */}
+        {!alertsLoading && alerts.length > 0 && (
+          <div style={{ background: "#fff", border: "1.5px solid #e4ece8", borderRadius: 11, overflow: "hidden" }}>
+            {alerts.map((a, i) => (
+              <div key={a.id} onClick={() => setOpenAlert(a)}
+                style={{ display: "flex", alignItems: "flex-start", padding: "11px 16px", borderBottom: i < alerts.length - 1 ? "1px solid #f0f4f2" : "none", cursor: "pointer", gap: 12, transition: "background .12s" }}
+                onMouseEnter={e => e.currentTarget.style.background="#f8faf9"}
+                onMouseLeave={e => e.currentTarget.style.background="transparent"}
+              >
+                <div style={st("width:30px;height:30px;border-radius:7px;flex-shrink:0;background:#f0f4f2;display:flex;align-items:center;justify-content:center;font-size:14px;margin-top:1px;")}>🏛</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={st("font-size:13px;font-weight:700;color:#16241d;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;")}>{a.title || a.url}</div>
+                  <div style={st("font-size:10.5px;color:#9aa8a1;margin-top:2px;display:flex;gap:10px;flex-wrap:wrap;")}>
+                    <span>{a.category || "ทั่วไป"}</span>
+                    {a.publishedAt && <span>📅 {a.publishedAt}</span>}
+                    <span style={st("overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:300px;")}>{a.url}</span>
+                  </div>
+                </div>
+                {isAdmin && (
+                  <button onClick={e => { e.stopPropagation(); deleteAlert(a.id); }}
+                    style={st("flex-shrink:0;background:none;border:none;cursor:pointer;color:#c0392b;font-size:17px;line-height:1;padding:3px 6px;border-radius:4px;")}
+                    title="ลบ">×</button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* ── Modals ─────────────────────────────────────────────────────────── */}
       {openDoc && <DocModal item={openDoc} onClose={() => setOpenDoc(null)} onDelete={handleDelete} onAttach={handleAttach} />}
       {openKnowledgeDoc && (
@@ -814,6 +928,22 @@ export default function ContextScreen() {
       {showCategoryManager && (
         <CategoryManagerModal categories={categories} onCreate={createCategory}
           onUpdate={updateCategory} onDelete={deleteCategory} onClose={() => setShowCategoryManager(false)} />
+      )}
+      {openAlert && (
+        <div onClick={() => setOpenAlert(null)} style={st("position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;display:flex;align-items:center;justify-content:center;padding:24px;")}>
+          <div onClick={e => e.stopPropagation()} style={st("background:#fff;border-radius:14px;width:100%;max-width:720px;max-height:85vh;overflow:auto;padding:28px 32px;")}>
+            <div style={st("font-size:17px;font-weight:700;color:#0f3026;margin-bottom:6px;")}>{openAlert.title || openAlert.url}</div>
+            <div style={st("font-size:12px;color:#6b7d75;margin-bottom:14px;display:flex;gap:12px;flex-wrap:wrap;")}>
+              <span>{openAlert.category}</span>
+              {openAlert.publishedAt && <span>📅 {openAlert.publishedAt}</span>}
+            </div>
+            <a href={openAlert.url} target="_blank" rel="noopener noreferrer" style={st("font-size:12px;color:#157347;display:block;margin-bottom:14px;word-break:break-all;")}>{openAlert.url}</a>
+            <div style={st("font-size:13px;color:#222;white-space:pre-wrap;line-height:1.7;border-top:1px solid #eef2f0;padding-top:14px;max-height:50vh;overflow:auto;")}>{openAlert.contentMd || "(ไม่มีเนื้อหา)"}</div>
+            <div style={st("margin-top:18px;text-align:right;")}>
+              <button onClick={() => setOpenAlert(null)} style={st("padding:8px 20px;background:#eef2f0;border:none;border-radius:8px;font-size:14px;cursor:pointer;font-family:inherit;")}>ปิด</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
