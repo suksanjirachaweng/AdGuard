@@ -49,27 +49,59 @@ export default function Sidebar({ open, onClose }) {
         >✕</button>
       </div>
 
-      <nav className="sidebar-nav" style={st("padding:10px 12px;display:flex;flex-direction:column;gap:1px;flex:1;overflow-y:auto;")}>
+      <nav className="sidebar-nav" style={st("padding:8px 10px 10px;display:flex;flex-direction:column;gap:1px;flex:1;overflow-y:auto;")}>
         {navDef.filter((n) => !n.adminOnly || user.role === "admin").map((n, i) => {
           if (n.type === "group") {
+            const isFirst = i === 0;
             return (
-              <div key={`g-${i}`} style={st("font-size:9.5px;font-weight:700;color:#4a7a62;letter-spacing:1.4px;padding:12px 12px 4px;" + (i === 0 ? "padding-top:4px;" : ""))}>
-                {n.label} · {n.labelEn}
+              <div key={`g-${i}`} style={{
+                marginTop: isFirst ? 2 : 10,
+                marginBottom: 2,
+                paddingTop: isFirst ? 0 : 10,
+                borderTop: isFirst ? "none" : "1px solid rgba(255,255,255,0.07)",
+                paddingLeft: 12,
+                paddingRight: 12,
+              }}>
+                <span style={{
+                  fontSize: 9,
+                  fontWeight: 700,
+                  letterSpacing: "2px",
+                  color: "rgba(207,224,216,0.32)",
+                  fontFamily: "'IBM Plex Mono', monospace",
+                  textTransform: "uppercase",
+                }}>{n.label}</span>
               </div>
             );
           }
           const active = n.key === screen;
-          const btn = "display:flex;align-items:center;gap:11px;width:100%;border:none;cursor:pointer;padding:9px 12px;border-radius:9px;font-family:inherit;transition:background .15s;" +
-            (active ? "background:#2f9e6a;color:#fff;" : "background:transparent;color:#a8c4b6;");
-          const ic = "width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;" + (active ? "color:#fff;" : "color:#5c8a72;");
           return (
-            <button key={n.key} className="nav-btn" onClick={() => handleNav(n.key)} style={st(btn)}>
-              <span style={st(ic)}>{n.icon}</span>
-              <span className="nav-label" style={st("flex:1;text-align:left;line-height:1.1;")}>
-                <span style={st("display:block;font-size:13.5px;font-weight:500;")}>{n.th}</span>
-                <span style={st("display:block;font-size:9.5px;opacity:.6;font-family:'IBM Plex Mono',monospace;")}>{n.en}</span>
+            <button key={n.key} className="nav-btn" onClick={() => handleNav(n.key)} style={{
+              display: "flex", alignItems: "center", gap: 10,
+              width: "100%", border: "none", cursor: "pointer",
+              padding: "8px 10px", borderRadius: 8,
+              fontFamily: "inherit", transition: "background .15s",
+              background: active ? "#2f9e6a" : "transparent",
+              color: active ? "#fff" : "#9abfb0",
+              position: "relative",
+            }}>
+              <span style={{
+                width: 26, height: 26,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 13, flexShrink: 0,
+                color: active ? "#fff" : "#4e8a6a",
+                borderRadius: 6,
+                background: active ? "rgba(255,255,255,0.15)" : "transparent",
+              }}>{n.icon}</span>
+              <span className="nav-label" style={{ flex: 1, textAlign: "left", lineHeight: 1.15 }}>
+                <span style={{ display: "block", fontSize: 13, fontWeight: active ? 600 : 450 }}>{n.th}</span>
+                <span style={{ display: "block", fontSize: 9, opacity: 0.5, fontFamily: "'IBM Plex Mono', monospace", marginTop: 1 }}>{n.en}</span>
               </span>
-              {n.badge && <span className="nav-badge" style={st("background:#d64545;color:#fff;font-size:10px;font-weight:600;padding:1px 7px;border-radius:9px;font-family:'IBM Plex Mono',monospace;")}>{n.badge}</span>}
+              {n.badge && <span className="nav-badge" style={{
+                background: "#d64545", color: "#fff",
+                fontSize: 9.5, fontWeight: 700,
+                padding: "1px 6px", borderRadius: 8,
+                fontFamily: "'IBM Plex Mono', monospace",
+              }}>{n.badge}</span>}
             </button>
           );
         })}
