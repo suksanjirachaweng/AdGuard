@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { st } from "../lib/st.js";
+import { st, urlLabel, isHttpUrl } from "../lib/st.js";
 import { riskBadge, statusBadge } from "../lib/badges.js";
 import { useApp } from "../store.jsx";
 
@@ -104,7 +104,13 @@ export default function Cases() {
               <span style={st("font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#7d8e86;cursor:pointer;")} onClick={() => openCase(c.id)}>{c.id}</span>
               <div style={st("min-width:0;cursor:pointer;")} onClick={() => openCase(c.id)}>
                 <div style={st("font-size:13px;font-weight:500;color:#16241d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;")}>{c.title}</div>
-                <div style={st("font-size:10.5px;color:#9aa8a1;font-family:'IBM Plex Mono',monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;")}>{c.source}</div>
+                {isHttpUrl(c.source) ? (
+                  <a href={c.source} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}
+                    style={st("font-size:10.5px;color:#2563a8;font-family:'IBM Plex Mono',monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;text-decoration:none;")}
+                    title={c.source}>{urlLabel(c.source, 50)}</a>
+                ) : (
+                  <div style={st("font-size:10.5px;color:#9aa8a1;font-family:'IBM Plex Mono',monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;")}>{c.source}</div>
+                )}
               </div>
               <span style={st("font-size:12px;color:#5a6b63;display:flex;align-items:center;gap:6px;cursor:pointer;")} onClick={() => openCase(c.id)}>
                 <span style={st("width:7px;height:7px;border-radius:50%;background:" + (typeDotColor[c.type] || "#9aa8a1") + ";display:inline-block;")}></span>{c.channel}
@@ -147,7 +153,13 @@ export default function Cases() {
                 <span style={st(riskBadge(c.risk))}>{c.riskTh}</span>
               </div>
               <div style={st("font-size:14px;font-weight:600;color:#16241d;line-height:1.35;margin-bottom:6px;")}>{c.title}</div>
-              <div style={st("font-size:11px;color:#9aa8a1;font-family:'IBM Plex Mono',monospace;margin-bottom:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;")}>{c.source}</div>
+              {isHttpUrl(c.source) ? (
+                <a href={c.source} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}
+                  style={st("font-size:11px;color:#2563a8;font-family:'IBM Plex Mono',monospace;margin-bottom:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;text-decoration:none;")}
+                  title={c.source}>{urlLabel(c.source, 60)}</a>
+              ) : (
+                <div style={st("font-size:11px;color:#9aa8a1;font-family:'IBM Plex Mono',monospace;margin-bottom:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;")}>{c.source}</div>
+              )}
               <div style={st("display:flex;align-items:center;gap:10px;flex-wrap:wrap;")}>
                 <span style={st("font-size:12px;color:#5a6b63;display:flex;align-items:center;gap:5px;")}>
                   <span style={st("width:7px;height:7px;border-radius:50%;background:" + (typeDotColor[c.type] || "#9aa8a1") + ";display:inline-block;")}></span>{c.channel}

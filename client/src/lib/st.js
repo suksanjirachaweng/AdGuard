@@ -14,3 +14,12 @@ export function st(str) {
   }
   return o;
 }
+export function urlLabel(url, max = 80) {
+  if (!url) return url;
+  try { url = decodeURIComponent(url); } catch {}
+  return url.length > max ? url.slice(0, max) + '…' : url;
+}
+
+export function isHttpUrl(url) {
+  return /^https?:\/\//i.test(url || '');
+}

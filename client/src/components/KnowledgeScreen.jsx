@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useApp } from "../store.jsx";
-import { st } from "../lib/st.js";
+import { st, urlLabel } from "../lib/st.js";
 
 export default function KnowledgeScreen() {
   const { state, loadAlerts, deleteAlert, startCrawl, pollCrawl, set } = useApp();
@@ -150,7 +150,7 @@ export default function KnowledgeScreen() {
                   <div style={st("font-size:12px;color:#6b7d75;display:flex;gap:12px;flex-wrap:wrap")}>
                     <span>{a.category || "ทั่วไป"}</span>
                     {a.publishedAt && <span>📅 {a.publishedAt}</span>}
-                    <span style={st("color:#9aab9f")}>{a.url}</span>
+                    <span style={st("color:#9aab9f")} title={a.url}>{urlLabel(a.url, 60)}</span>
                   </div>
                 </div>
                 {isAdmin && (
@@ -184,8 +184,9 @@ export default function KnowledgeScreen() {
               {openAlert.publishedAt && <span>📅 {openAlert.publishedAt}</span>}
             </div>
             <a href={openAlert.url} target="_blank" rel="noopener noreferrer"
-              style={st("font-size:12px;color:#157347;display:block;margin-bottom:16px;word-break:break-all")}>
-              {openAlert.url}
+              style={st("font-size:12px;color:#157347;display:block;margin-bottom:16px;word-break:break-all")}
+              title={openAlert.url}>
+              {urlLabel(openAlert.url, 100)}
             </a>
             <div style={st("font-size:13px;color:#222;white-space:pre-wrap;line-height:1.7;border-top:1px solid #eef2f0;padding-top:16px;max-height:50vh;overflow:auto")}>
               {openAlert.contentMd || "(ไม่มีเนื้อหา)"}

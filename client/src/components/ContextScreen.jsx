@@ -1,5 +1,5 @@
 import { useRef, useState, useMemo, useEffect } from "react";
-import { st } from "../lib/st.js";
+import { st, urlLabel, isHttpUrl } from "../lib/st.js";
 import { ctxTypes } from "../lib/data.js";
 import { useApp } from "../store.jsx";
 import CategoryManagerModal from "./CategoryManagerModal.jsx";
@@ -949,7 +949,11 @@ export default function ContextScreen() {
                   <div style={st("font-size:10.5px;color:#9aa8a1;margin-top:2px;display:flex;gap:10px;flex-wrap:wrap;")}>
                     <span>{a.category || "ทั่วไป"}</span>
                     {a.publishedAt && <span>📅 {a.publishedAt}</span>}
-                    <span style={st("overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:300px;")}>{a.url}</span>
+                    {isHttpUrl(a.url) ? (
+                      <a href={a.url} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()}
+                        style={st("overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:300px;color:#2563a8;text-decoration:none;display:block;")}
+                        title={a.url}>{urlLabel(a.url, 60)}</a>
+                    ) : <span style={st("overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:300px;")}>{a.url}</span>}
                   </div>
                 </div>
                 {isAdmin && (
@@ -1013,7 +1017,7 @@ export default function ContextScreen() {
               <span>{openAlert.category}</span>
               {openAlert.publishedAt && <span>📅 {openAlert.publishedAt}</span>}
             </div>
-            <a href={openAlert.url} target="_blank" rel="noopener noreferrer" style={st("font-size:12px;color:#157347;display:block;margin-bottom:14px;word-break:break-all;")}>{openAlert.url}</a>
+            <a href={openAlert.url} target="_blank" rel="noopener noreferrer" style={st("font-size:12px;color:#157347;display:block;margin-bottom:14px;word-break:break-all;")} title={openAlert.url}>{urlLabel(openAlert.url, 100)}</a>
             <div style={st("font-size:13px;color:#222;white-space:pre-wrap;line-height:1.7;border-top:1px solid #eef2f0;padding-top:14px;max-height:50vh;overflow:auto;")}>{openAlert.contentMd || "(ไม่มีเนื้อหา)"}</div>
             <div style={st("margin-top:18px;text-align:right;")}>
               <button onClick={() => setOpenAlert(null)} style={st("padding:8px 20px;background:#eef2f0;border:none;border-radius:8px;font-size:14px;cursor:pointer;font-family:inherit;")}>ปิด</button>
