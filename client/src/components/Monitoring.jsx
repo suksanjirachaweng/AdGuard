@@ -430,7 +430,10 @@ export default function Monitoring() {
                       {l.status === "promoted" && <span style={st("font-size:11px;font-weight:600;color:#157347;")}>✓ ส่งเป็นเคส {l.promotedCaseId}</span>}
                       {l.status === "discarded" && <span style={st("font-size:11px;font-weight:600;color:#9aa8a1;")}>✕ ทิ้งแล้ว</span>}
                     </div>
-                    <a href={l.url} target="_blank" rel="noreferrer" style={st("font-size:13.5px;font-weight:600;color:#2563a8;text-decoration:none;word-break:break-all;")}>{l.url}</a>
+                    <a href={l.url} target="_blank" rel="noreferrer" style={st("font-size:13px;font-weight:500;color:#2563a8;text-decoration:none;word-break:break-all;")}
+                      title={l.url}>
+                      {(() => { try { const d = decodeURIComponent(l.url); return d.length > 120 ? d.slice(0, 120) + "…" : d; } catch { return l.url.length > 120 ? l.url.slice(0, 120) + "…" : l.url; } })()}
+                    </a>
                     {l.rawText && <div style={st("font-size:12.5px;color:#5a6b63;line-height:1.6;margin-top:6px;")}>{l.rawText.length > 200 ? l.rawText.slice(0, 200) + "…" : l.rawText}</div>}
                     <div style={st("font-size:11px;color:#9aa8a1;font-family:'IBM Plex Mono',monospace;margin-top:6px;")}>
                       พบเมื่อ {new Date(l.discoveredAt).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })}
