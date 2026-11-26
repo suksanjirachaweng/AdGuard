@@ -557,6 +557,9 @@ export default function ContextScreen() {
   const [showCategoryManager, setShowCategoryManager] = useState(false);
   const [openAlert,          setOpenAlert]          = useState(null);
   const [alertSearch,        setAlertSearch]        = useState("");
+  const [docUploading,       setDocUploading]       = useState(false);
+  const [docUploadError,     setDocUploadError]     = useState("");
+  const docFileRef = useRef(null);
   const pollRef = useRef(null);
 
   const [search,       setSearch]       = useState("");
@@ -581,6 +584,26 @@ export default function ContextScreen() {
   const handleCrawl = async () => {
     if (!window.confirm("เริ่มดึงข้อมูลจาก safetyalert.fda.moph.go.th?\n(อาจใช้เวลา 5–15 นาที)")) return;
     await startCrawl();
+  };
+
+  const { loadKnowledgeDocs } = useApp();
+
+  const handleDocUpload = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setDocUploading(true); setDocUploadError("");
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("category", "general");
+      const r = await fetch("/api/knowledge/docs/upload", { method: "POST", body: fd });
+      if (!r.ok) { const d = await r.json(); throw new Error(d.error || "อัปโหลดไม่สำเร็จ"); }
+      await loadKnowledgeDocs();
+    } catch (err) {
+      setDocUploadError(err.message);
+      setTimeout(() => setDocUploadError(""), 5000);
+    } finally { setDocUploading(false); }
   };
 
   const handleAlertSearch = (v) => {
@@ -784,7 +807,7 @@ export default function ContextScreen() {
       )}
 
       {/* ── Section 1: บริบท AI ────────────────────────────────────────────── */}
-      <div style={{ marginBottom: 24 }}>
+      <div style={{ marginBottom: 20, background: "#fff", border: "1.5px solid #e4ece8", borderRadius: 14, padding: "18px 20px" }}>
         <SectionHeader
           title="✦ บริบท AI"
           description="inject ตรงๆ ทุก prompt · อัปเดตทันที"
@@ -813,13 +836,22 @@ export default function ContextScreen() {
       </div>
 
       {/* ── Section 2: คลังความรู้ ─────────────────────────────────────────── */}
-      <div>
+      <div style={{ marginBottom: 20, background: "#fff", border: "1.5px solid #e4ece8", borderRadius: 14, padding: "18px 20px" }}>
+        <input ref={docFileRef} type="file" accept=".pdf,.txt,.md,.csv" onChange={handleDocUpload} style={{ display: "none" }} />
         <SectionHeader
           title="📚 คลังความรู้"
           description="RAG · ดึง chunks อัตโนมัติตามความเกี่ยวข้องกับโฆษณาที่กำลังวิเคราะห์"
           count={filteredPdf.length}
           total={knowledgeDocs.length}
+          action={isAdmin && (
+            <button onClick={() => docFileRef.current?.click()} disabled={docUploading}
+              style={st(`display:flex;align-items:center;gap:5px;background:${docUploading ? "#6b7d75" : "#157347"};color:#fff;border:none;border-radius:8px;padding:7px 14px;font-family:inherit;font-size:12px;font-weight:700;cursor:${docUploading ? "default" : "pointer"};`)}
+              onMouseEnter={e => { if (!docUploading) e.currentTarget.style.background = "#0f5c37"; }}
+              onMouseLeave={e => { if (!docUploading) e.currentTarget.style.background = "#157347"; }}
+            >{docUploading ? "⏳ กำลังอัปโหลด…" : "＋ เพิ่มเอกสาร"}</button>
+          )}
         />
+        {docUploadError && <div style={st("padding:8px 12px;background:#fdecea;border-radius:8px;color:#c0392b;font-size:12px;margin-bottom:10px;")}>{docUploadError}</div>}
         {filteredPdf.length === 0 ? (
           <EmptySection hasSearch={!!search} />
         ) : viewMode === "grid" ? (
@@ -835,7 +867,7 @@ export default function ContextScreen() {
       </div>
 
       {/* ── Section 3: คลังความรู้ อย. ─────────────────────────────────────── */}
-      <div style={{ marginTop: 24 }}>
+      <div style={{ background: "#fff", border: "1.5px solid #e4ece8", borderRadius: 14, padding: "18px 20px" }}>
         <SectionHeader
           title="🏛 คลังความรู้ อย."
           description={`ประกาศเตือนภัย ฉลาก กฎหมายจาก safetyalert.fda.moph.go.th${alertsTotal > 0 ? ` · ${alertsTotal.toLocaleString()} รายการ` : ""}`}

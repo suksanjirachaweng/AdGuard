@@ -587,6 +587,26 @@ app.patch("/api/users/:id/password", requireAuth, requireAdmin, wrap(async (req,
 app.get("/api/knowledge/docs", requireAuth, wrap(async (req, res) => {
   res.json({ docs: await store.listKnowledgeDocs(req.query.category ? { category: req.query.category } : {}) });
 }));
+app.post("/api/knowledge/docs/upload", requireAuth, requireAdmin, upload.single("file"), wrap(async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: "ไม่พบไฟล์ที่อัปโหลด" });
+  const extracted = await extractFileText(req.file);
+  if (!extracted) return res.status(400).json({ error: "รองรับเฉพาะไฟล์ PDF, TXT, MD, CSV" });
+  if (!extracted.text) return res.status(400).json({ error: "ไม่สามารถสกัดข้อความจากไฟล์นี้ได้" });
+
+  const category = (req.body?.category || "general").trim();
+  const title = (req.body?.title || extracted.name.replace(/\.[^.]+$/, "")).slice(0, 200).trim();
+
+  const CHUNK_SIZE = 1000;
+  const text = extracted.text.slice(0, 500000);
+  const chunks = [];
+  for (let i = 0; i < text.length; i += CHUNK_SIZE) chunks.push(text.slice(i, i + CHUNK_SIZE));
+
+  const doc = await store.insertKnowledgeDoc({ category, docType: "uploaded", title, sourceFile: extracted.name });
+  await store.insertKnowledgeChunks(doc.id, chunks);
+
+  const updated = { ...doc, chunkCount: chunks.length };
+  res.json(updated);
+}));
 app.patch("/api/knowledge/docs/:id/toggle", requireAuth, requireAdmin, wrap(async (req, res) => {
   const doc = await store.toggleKnowledgeDoc(Number(req.params.id));
   if (!doc) return res.status(404).json({ error: "ไม่พบเอกสาร" });
