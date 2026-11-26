@@ -49,9 +49,15 @@ export default function Sidebar({ open, onClose }) {
         >✕</button>
       </div>
 
-      <nav className="sidebar-nav" style={st("padding:14px 12px;display:flex;flex-direction:column;gap:3px;flex:1;")}>
-        <div className="menu-label" style={st("font-size:10px;font-weight:600;color:#5c8a72;letter-spacing:1.2px;padding:8px 12px 6px;")}>เมนูหลัก · MENU</div>
-        {navDef.filter((n) => !n.adminOnly || user.role === "admin").map((n) => {
+      <nav className="sidebar-nav" style={st("padding:10px 12px;display:flex;flex-direction:column;gap:1px;flex:1;overflow-y:auto;")}>
+        {navDef.filter((n) => !n.adminOnly || user.role === "admin").map((n, i) => {
+          if (n.type === "group") {
+            return (
+              <div key={`g-${i}`} style={st("font-size:9.5px;font-weight:700;color:#4a7a62;letter-spacing:1.4px;padding:12px 12px 4px;" + (i === 0 ? "padding-top:4px;" : ""))}>
+                {n.label} · {n.labelEn}
+              </div>
+            );
+          }
           const active = n.key === screen;
           const btn = "display:flex;align-items:center;gap:11px;width:100%;border:none;cursor:pointer;padding:9px 12px;border-radius:9px;font-family:inherit;transition:background .15s;" +
             (active ? "background:#2f9e6a;color:#fff;" : "background:transparent;color:#a8c4b6;");
