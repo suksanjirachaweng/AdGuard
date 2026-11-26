@@ -718,17 +718,6 @@ export default function ContextScreen() {
             <div style={st("font-size:16px;font-weight:800;margin-bottom:3px;letter-spacing:-.2px;")}>ฐานความรู้และบริบทสำหรับ AI</div>
             <div style={st("font-size:12px;color:#8cc4a7;line-height:1.6;max-width:580px;")}>เพิ่มกฎหมาย ประกาศ กฎเกณฑ์ หรือคำต้องห้าม — AI ใช้เป็นบริบทประกอบการวิเคราะห์โฆษณา ยิ่งมีบริบทมากผลยิ่งแม่นยำ</div>
           </div>
-          <div style={{ display: "flex", gap: 7, flexShrink: 0 }}>
-            <button onClick={() => setShowCategoryManager(true)}
-              style={st("display:flex;align-items:center;gap:5px;background:rgba(255,255,255,.1);color:#cde8da;border:1px solid rgba(255,255,255,.18);border-radius:9px;padding:9px 14px;font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;")}
-              onMouseEnter={e => e.currentTarget.style.background="rgba(255,255,255,.18)"}
-              onMouseLeave={e => e.currentTarget.style.background="rgba(255,255,255,.1)"}
-            >📂 จัดการหมวดหมู่</button>
-            <button className="h-green" onClick={openAddContext}
-              style={st("display:flex;align-items:center;gap:6px;background:#2f9e6a;color:#fff;border:none;border-radius:9px;padding:9px 18px;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.3);")}>
-              ＋ เพิ่มบริบท
-            </button>
-          </div>
         </div>
 
         {/* Stats strip — 4 numbers in a row, no boxes */}
@@ -819,11 +808,18 @@ export default function ContextScreen() {
           count={filteredPdf.length}
           total={knowledgeDocs.length}
           action={isAdmin && (
-            <button onClick={() => docFileRef.current?.click()} disabled={docUploading}
-              style={st(`display:flex;align-items:center;gap:5px;background:${docUploading ? "#6b7d75" : "#157347"};color:#fff;border:none;border-radius:8px;padding:7px 14px;font-family:inherit;font-size:12px;font-weight:700;cursor:${docUploading ? "default" : "pointer"};`)}
-              onMouseEnter={e => { if (!docUploading) e.currentTarget.style.background = "#0f5c37"; }}
-              onMouseLeave={e => { if (!docUploading) e.currentTarget.style.background = "#157347"; }}
-            >{docUploading ? "⏳ กำลังอัปโหลด…" : "＋ เพิ่มเอกสาร"}</button>
+            <div style={{ display: "flex", gap: 7 }}>
+              <button onClick={() => setShowCategoryManager(true)}
+                style={st("display:flex;align-items:center;gap:5px;background:#f0f7f2;color:#157347;border:1.5px solid #c9e6d4;border-radius:8px;padding:7px 13px;font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;")}
+                onMouseEnter={e => e.currentTarget.style.background="#e2f0e9"}
+                onMouseLeave={e => e.currentTarget.style.background="#f0f7f2"}
+              >📂 จัดการหมวดหมู่</button>
+              <button onClick={() => docFileRef.current?.click()} disabled={docUploading}
+                style={st(`display:flex;align-items:center;gap:5px;background:${docUploading ? "#6b7d75" : "#157347"};color:#fff;border:none;border-radius:8px;padding:7px 14px;font-family:inherit;font-size:12px;font-weight:700;cursor:${docUploading ? "default" : "pointer"};`)}
+                onMouseEnter={e => { if (!docUploading) e.currentTarget.style.background = "#0f5c37"; }}
+                onMouseLeave={e => { if (!docUploading) e.currentTarget.style.background = "#157347"; }}
+              >{docUploading ? "⏳ กำลังอัปโหลด…" : "＋ เพิ่มเอกสาร"}</button>
+            </div>
           )}
         />
         {docUploadError && <div style={st("padding:8px 12px;background:#fdecea;border-radius:8px;color:#c0392b;font-size:12px;margin-bottom:10px;")}>{docUploadError}</div>}
