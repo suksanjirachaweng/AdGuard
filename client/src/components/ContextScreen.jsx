@@ -736,7 +736,7 @@ export default function ContextScreen() {
       <div style={{ marginBottom: 20, background: "#fff", border: "1.5px solid #e4ece8", borderRadius: 14, padding: "18px 20px" }}>
         <SectionHeader
           title="✦ บริบท AI"
-          description="inject ตรงๆ ทุก prompt · อัปเดตทันที"
+          description="คำสั่งที่แนบไปกับ AI ทุกครั้ง — กฎหมาย, คำต้องห้าม, เกณฑ์ให้คะแนน ถูก copy ลง prompt ตรงๆ ทุกการวิเคราะห์ ไม่ว่าโฆษณานั้นจะเกี่ยวกับอะไรก็ตาม"
           count={filteredManual.length}
           total={items.length}
           action={
@@ -804,7 +804,7 @@ export default function ContextScreen() {
         <input ref={docFileRef} type="file" accept=".pdf,.txt,.md,.csv" onChange={handleDocUpload} style={{ display: "none" }} />
         <SectionHeader
           title="📚 คลังความรู้"
-          description="RAG · ดึง chunks อัตโนมัติตามความเกี่ยวข้องกับโฆษณาที่กำลังวิเคราะห์"
+          description="หนังสืออ้างอิงที่ AI ค้นได้ตามต้องการ — เอกสาร PDF ถูกแบ่งเป็น chunks AI จะเลือกเฉพาะ chunks ที่เกี่ยวข้องกับโฆษณาชิ้นนั้นมาใช้ เช่น วิเคราะห์โฆษณายา → ดึงเฉพาะ chunks เรื่องยา"
           count={filteredPdf.length}
           total={knowledgeDocs.length}
           action={isAdmin && (
@@ -882,7 +882,7 @@ export default function ContextScreen() {
       <div style={{ background: "#fff", border: "1.5px solid #e4ece8", borderRadius: 14, padding: "18px 20px" }}>
         <SectionHeader
           title="🏛 คลังความรู้ อย."
-          description={`ประกาศเตือนภัย ฉลาก กฎหมายจาก safetyalert.fda.moph.go.th${alertsTotal > 0 ? ` · ${alertsTotal.toLocaleString()} รายการ` : ""}`}
+          description={`ฐานข้อมูลเตือนภัยจากเว็บ อย. โดยตรง — ประกาศจริงจาก safetyalert.fda.moph.go.th ใช้ตรวจว่าผลิตภัณฑ์ที่โฆษณาอยู่ถูก อย. แบนหรือเตือนภัยไว้แล้วหรือเปล่า${alertsTotal > 0 ? ` · ${alertsTotal.toLocaleString()} รายการ` : ""}`}
           count={alerts.length}
           total={alertsTotal || alerts.length}
           action={isAdmin && (
@@ -962,6 +962,37 @@ export default function ContextScreen() {
           </div>
         )}
         <Pager page={s3Page} total={alerts.length} pageSize={10} onChange={setS3Page} />
+      </div>
+
+      {/* ── Summary table ──────────────────────────────────────────────────── */}
+      <div style={{ marginTop: 20, background: "#fff", border: "1.5px solid #e4ece8", borderRadius: 14, padding: "20px 24px" }}>
+        <div style={{ fontSize: 13, fontWeight: 800, color: "#16241d", marginBottom: 14 }}>สรุปความแตกต่าง</div>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
+          <thead>
+            <tr style={{ borderBottom: "1.5px solid #e4ece8" }}>
+              <th style={{ textAlign: "left", padding: "7px 12px 7px 0", color: "#6b7d75", fontWeight: 600, width: "34%" }}></th>
+              <th style={{ textAlign: "center", padding: "7px 12px", color: "#6b7d75", fontWeight: 600 }}>inject ทุกครั้ง</th>
+              <th style={{ textAlign: "center", padding: "7px 12px", color: "#6b7d75", fontWeight: 600 }}>ค้นแบบ smart</th>
+              <th style={{ textAlign: "center", padding: "7px 12px", color: "#6b7d75", fontWeight: 600 }}>มาจากเว็บ อย.</th>
+            </tr>
+          </thead>
+          <tbody>
+            {[
+              { label: "✦ บริบท AI",        inject: true,  rag: false, fda: false },
+              { label: "📚 คลังความรู้",     inject: false, rag: true,  fda: false },
+              { label: "🏛 คลังความรู้ อย.", inject: false, rag: true,  fda: true  },
+            ].map((row, i) => (
+              <tr key={i} style={{ borderBottom: "1px solid #f0f4f2" }}>
+                <td style={{ padding: "10px 12px 10px 0", fontWeight: 700, color: "#16241d" }}>{row.label}</td>
+                {[row.inject, row.rag, row.fda].map((v, j) => (
+                  <td key={j} style={{ textAlign: "center", padding: "10px 12px", fontSize: 15 }}>
+                    {v ? <span style={{ color: "#157347", fontWeight: 700 }}>✓</span> : <span style={{ color: "#c8d6ce" }}>—</span>}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
 
       {/* ── Modals ─────────────────────────────────────────────────────────── */}
