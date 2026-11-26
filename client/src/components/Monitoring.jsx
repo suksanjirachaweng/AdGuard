@@ -90,8 +90,9 @@ function DiscoverySection({ onRun, running, isAdmin }) {
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
   const [showSchedule, setShowSchedule] = useState(false);
-  const [schedule, setSchedule] = useState(null); // loaded from API
-  const [draft, setDraft] = useState(null);
+  const DEFAULT_SCH = { enabled: true, hour: 8, minute: 0, days: [0,1,2,3,4,5,6] };
+  const [schedule, setSchedule] = useState(DEFAULT_SCH);
+  const [draft, setDraft] = useState(DEFAULT_SCH);
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState("");
 
