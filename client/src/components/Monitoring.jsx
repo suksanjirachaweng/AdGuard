@@ -98,8 +98,8 @@ function DiscoverySection({ onRun, running, isAdmin }) {
 
   useEffect(() => {
     fetch("/api/discovery/schedule", { credentials: "include" })
-      .then((r) => r.json())
-      .then(({ schedule: s }) => { setSchedule(s); setDraft(s); })
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => { if (data?.schedule) { setSchedule(data.schedule); setDraft(data.schedule); } })
       .catch(() => {});
   }, []);
 

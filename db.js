@@ -773,12 +773,12 @@ export async function createUser({ email, passwordHash, name, role = "officer" }
 }
 
 export async function getSetting(key, defaultValue = null) {
-  const { rows } = await query("SELECT value FROM settings WHERE key=$1", [key]);
+  const { rows } = await pool.query("SELECT value FROM settings WHERE key=$1", [key]);
   return rows.length ? rows[0].value : defaultValue;
 }
 
 export async function setSetting(key, value) {
-  await query(
+  await pool.query(
     `INSERT INTO settings (key,value,updated_at) VALUES ($1,$2::jsonb,now())
      ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_at=now()`,
     [key, JSON.stringify(value)]
