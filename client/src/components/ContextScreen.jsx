@@ -368,179 +368,175 @@ function GridView({ items, sortBy, categories, onOpenDoc, onOpenKDoc, onToggleM,
   return <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 11 }}>{els}</div>;
 }
 
-// ─── ListView ─────────────────────────────────────────────────────────────────
-// Column layout:
-// [icon 42] [ชื่อเอกสาร flex:1] [รูปแบบ 68] [ประเภท 118] [หมวด 110] [ข้อมูล 68] [สถานะ 88] [toggle 46]
-// รูปแบบ = HOW added: manual | PDF
-// ประเภท = content type (manual only): กฎหมาย, รายการอนุญาต, คำต้องห้าม ...
-// หมวด   = product category (PDF only): อาหาร, ยา, เครื่องสำอาง ...
-const LIST_COLS = [
-  { key: "name",     label: "ชื่อเอกสาร", flex: true,  sortAsc: "name",     sortDesc: "name_z" },
-  { key: "source",   label: "รูปแบบ",      width: 68,   sortAsc: null },
-  { key: "type",     label: "ประเภท",      width: 118,  sortAsc: null },
-  { key: "category", label: "หมวด",        width: 110,  sortAsc: "category", sortDesc: null },
-  { key: "data",     label: "ข้อมูล",      width: 68,   sortAsc: "chunks",   sortDesc: null,    align: "right" },
-  { key: "status",   label: "สถานะ",       width: 88,   sortAsc: null,                          align: "right" },
+// ─── SectionHeader ─────────────────────────────────────────────────────────────────────────────────
+function SectionHeader({ title, description, count, total, action }) {
+  return (
+    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 10 }}>
+      <div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 14, fontWeight: 800, color: "#16241d" }}>{title}</span>
+          <span style={{ fontSize: 11, color: "#9aa8a1", fontFamily: "'IBM Plex Mono', monospace" }}>
+            {count === total ? count : `${count} / ${total}`} รายการ
+          </span>
+        </div>
+        {description && <div style={{ fontSize: 11.5, color: "#7d8e86", marginTop: 2 }}>{description}</div>}
+      </div>
+      {action}
+    </div>
+  );
+}
+
+function EmptySection({ hasSearch }) {
+  return (
+    <div style={st("text-align:center;padding:28px 20px;background:#fafcfb;border:1.5px dashed #dce8e2;border-radius:11px;")}>
+      <div style={st("font-size:22px;margin-bottom:7px;")}>{hasSearch ? "🔍" : "📭"}</div>
+      <div style={st("font-size:12px;color:#7d8e86;")}>{hasSearch ? "ไม่พบรายการที่ตรงกับการค้นหา" : "ยังไม่มีรายการในส่วนนี้"}</div>
+    </div>
+  );
+}
+
+// ─── ManualListView ─────────────────────────────────────────────────────────────────────────────────
+const MANUAL_COLS = [
+  { key: "name",   label: "ชื่อเอกสาร", flex: true, sortAsc: "name",  sortDesc: "name_z" },
+  { key: "type",   label: "ประเภท",     width: 140, sortAsc: null },
+  { key: "status", label: "สถานะ",      width: 92,  sortAsc: null,    align: "right" },
 ];
 
-function ListView({ items, categories, sortBy, setSortBy, onOpenDoc, onOpenKDoc, onToggleM, onToggleK }) {
-  const handleColClick = (col) => {
+function ManualListView({ items, sortBy, setSortBy, onOpen, onToggle }) {
+  const handleColClick = col => {
     if (!col.sortAsc) return;
-    // toggle asc/desc if same column, else go to asc
     if (sortBy === col.sortAsc && col.sortDesc) setSortBy(col.sortDesc);
     else setSortBy(col.sortAsc);
   };
-
-  const sortIcon = (col) => {
+  const sortIcon = col => {
     if (!col.sortAsc) return null;
-    const isAsc = sortBy === col.sortAsc;
-    const isDesc = col.sortDesc && sortBy === col.sortDesc;
-    if (isAsc) return <span style={{ marginLeft: 3, fontSize: 10 }}>↑</span>;
-    if (isDesc) return <span style={{ marginLeft: 3, fontSize: 10 }}>↓</span>;
+    if (sortBy === col.sortAsc) return <span style={{ marginLeft: 3, fontSize: 10 }}>↑</span>;
+    if (col.sortDesc && sortBy === col.sortDesc) return <span style={{ marginLeft: 3, fontSize: 10 }}>↓</span>;
     return <span style={{ marginLeft: 3, fontSize: 10, color: "#cdd8d2" }}>⇅</span>;
   };
-
-  const isColActive = (col) => col.sortAsc && (sortBy === col.sortAsc || sortBy === col.sortDesc);
+  const isActive = col => col.sortAsc && (sortBy === col.sortAsc || sortBy === col.sortDesc);
 
   return (
     <div style={st("background:#fff;border:1.5px solid #e4ece8;border-radius:11px;overflow:hidden;")}>
-      {/* Column headers */}
       <div style={{ display: "flex", alignItems: "center", padding: "0 16px", background: "#f5f8f6", borderBottom: "1.5px solid #e4ece8" }}>
         <div style={{ width: 42, flexShrink: 0 }} />
-        {LIST_COLS.map(col => (
-          <div key={col.key}
-            onClick={() => handleColClick(col)}
-            style={{
-              ...(col.flex ? { flex: 1, minWidth: 0 } : { width: col.width, flexShrink: 0 }),
-              textAlign: col.align || "left",
-              padding: "8px 6px",
-              fontSize: 10.5,
-              fontWeight: 700,
-              letterSpacing: ".3px",
-              color: isColActive(col) ? "#157347" : "#8a9e96",
-              cursor: col.sortAsc ? "pointer" : "default",
-              userSelect: "none",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: col.align === "right" ? "flex-end" : "flex-start",
-              gap: 1,
-              transition: "color .12s",
-            }}
+        {MANUAL_COLS.map(col => (
+          <div key={col.key} onClick={() => handleColClick(col)}
+            style={{ ...(col.flex ? { flex: 1, minWidth: 0 } : { width: col.width, flexShrink: 0 }), textAlign: col.align || "left", padding: "8px 6px", fontSize: 10.5, fontWeight: 700, letterSpacing: ".3px", color: isActive(col) ? "#157347" : "#8a9e96", cursor: col.sortAsc ? "pointer" : "default", userSelect: "none", display: "flex", alignItems: "center", justifyContent: col.align === "right" ? "flex-end" : "flex-start", gap: 1, transition: "color .12s" }}
             onMouseEnter={e => { if (col.sortAsc) e.currentTarget.style.color = "#157347"; }}
-            onMouseLeave={e => { e.currentTarget.style.color = isColActive(col) ? "#157347" : "#8a9e96"; }}
-          >
-            {col.label}{sortIcon(col)}
-          </div>
+            onMouseLeave={e => { e.currentTarget.style.color = isActive(col) ? "#157347" : "#8a9e96"; }}
+          >{col.label}{sortIcon(col)}</div>
         ))}
         <div style={{ width: 46, flexShrink: 0 }} />
       </div>
-
-      {/* Rows */}
       {items.map((item, i) => {
-        const isLast = i === items.length - 1;
-        const bdr = isLast ? "none" : "1px solid #f0f4f2";
-
-        if (item._kind === "manual") {
-          const tp = ctxTypes[item.type] || ctxTypes.law;
-          return (
-            <div key={`m-${item.id}`}
-              onClick={() => onOpenDoc(item)}
-              style={{ display: "flex", alignItems: "center", padding: "10px 16px", borderBottom: bdr, cursor: "pointer", transition: "background .12s" }}
-              onMouseEnter={e => e.currentTarget.style.background="#f8faf9"}
-              onMouseLeave={e => e.currentTarget.style.background="transparent"}
-            >
-              {/* icon */}
-              <div style={{ width: 42, flexShrink: 0, display: "flex", alignItems: "center" }}>
-                <div style={st("width:30px;height:30px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:14px;background:" + tp.bg + ";color:" + tp.color + ";")}>{tp.icon}</div>
-              </div>
-              {/* ชื่อเอกสาร */}
-              <div style={{ flex: 1, minWidth: 0, paddingRight: 10 }}>
-                <div style={st("font-size:13px;font-weight:700;color:#16241d;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;")}>{item.title}</div>
-                <div style={st("font-size:10.5px;color:#9aa8a1;margin-top:1px;")}>{item.meta}</div>
-              </div>
-              {/* รูปแบบ */}
-              <div style={{ width: 68, flexShrink: 0, paddingRight: 6 }}>
-                <span style={st("font-size:9px;font-weight:600;padding:2px 7px;border-radius:4px;background:#f0f4f2;color:#7d8e86;white-space:nowrap;")}>manual</span>
-              </div>
-              {/* ประเภท (content type — manual only) */}
-              <div style={{ width: 118, flexShrink: 0, paddingRight: 6 }}>
-                <span style={st("font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:" + tp.bg + ";color:" + tp.color + ";white-space:nowrap;")}>{tp.label}</span>
-              </div>
-              {/* หมวด (category — PDF only) */}
-              <div style={{ width: 110, flexShrink: 0, paddingRight: 6 }}>
-                <span style={st("font-size:10.5px;color:#cdd8d2;")}>—</span>
-              </div>
-              {/* ข้อมูล */}
-              <div style={{ width: 68, flexShrink: 0, textAlign: "right", paddingRight: 10 }}>
-                <span style={st("font-size:10.5px;color:#cdd8d2;")}>—</span>
-              </div>
-              {/* สถานะ */}
-              <div style={{ width: 88, flexShrink: 0, textAlign: "right", paddingRight: 10 }}>
-                <span style={{ fontSize: 10, fontWeight: 600, color: item.active ? "#2c7a4f" : "#b0bdb6" }}>
-                  {item.active ? "● ใช้งาน" : "○ ปิด"}
-                </span>
-              </div>
-              {/* toggle */}
-              <div style={{ width: 46, flexShrink: 0, display: "flex", justifyContent: "flex-end" }}>
-                <Toggle active={item.active} onClick={e => { e.stopPropagation(); onToggleM(item.id); }} small />
-              </div>
+        const tp = ctxTypes[item.type] || ctxTypes.law;
+        const bdr = i < items.length - 1 ? "1px solid #f0f4f2" : "none";
+        return (
+          <div key={item.id} onClick={() => onOpen(item)}
+            style={{ display: "flex", alignItems: "center", padding: "10px 16px", borderBottom: bdr, cursor: "pointer", transition: "background .12s" }}
+            onMouseEnter={e => e.currentTarget.style.background="#f8faf9"}
+            onMouseLeave={e => e.currentTarget.style.background="transparent"}
+          >
+            <div style={{ width: 42, flexShrink: 0, display: "flex", alignItems: "center" }}>
+              <div style={st("width:30px;height:30px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:14px;background:" + tp.bg + ";color:" + tp.color + ";")}>{tp.icon}</div>
             </div>
-          );
-        } else {
-          const ci = catInfo(item.category || "general", categories);
-          return (
-            <div key={`k-${item.id}`}
-              onClick={() => onOpenKDoc(item)}
-              style={{ display: "flex", alignItems: "center", padding: "10px 16px", borderBottom: bdr, borderLeft: `3px solid ${ci.color}`, cursor: "pointer", transition: "background .12s" }}
-              onMouseEnter={e => e.currentTarget.style.background="#f8faf9"}
-              onMouseLeave={e => e.currentTarget.style.background="transparent"}
-            >
-              {/* icon */}
-              <div style={{ width: 42, flexShrink: 0, display: "flex", alignItems: "center" }}>
-                <div style={st("width:30px;height:30px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:14px;background:" + ci.bg + ";")} >📄</div>
-              </div>
-              {/* ชื่อเอกสาร */}
-              <div style={{ flex: 1, minWidth: 0, paddingRight: 10 }}>
-                <div style={st("font-size:13px;font-weight:700;color:#16241d;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;")}>{item.title}</div>
-                <div style={st("font-size:10.5px;color:#9aa8a1;margin-top:1px;font-family:'IBM Plex Mono',monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;")}>{item.sourceFile || ""}</div>
-              </div>
-              {/* รูปแบบ */}
-              <div style={{ width: 68, flexShrink: 0, paddingRight: 6 }}>
-                <span style={st("font-size:9px;font-weight:600;padding:2px 7px;border-radius:4px;background:#f0f4f2;color:#7d8e86;white-space:nowrap;")}>PDF</span>
-              </div>
-              {/* ประเภท (content type — manual only) */}
-              <div style={{ width: 118, flexShrink: 0, paddingRight: 6 }}>
-                <span style={st("font-size:10.5px;color:#cdd8d2;")}>—</span>
-              </div>
-              {/* หมวด (category — PDF only) */}
-              <div style={{ width: 110, flexShrink: 0, paddingRight: 6 }}>
-                <span style={st("font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:" + ci.bg + ";color:" + ci.color + ";white-space:nowrap;")}>{ci.label}</span>
-              </div>
-              {/* ข้อมูล (chunks) */}
-              <div style={{ width: 68, flexShrink: 0, textAlign: "right", paddingRight: 10 }}>
-                {item.chunkCount != null
-                  ? <span style={{ fontSize: 12, fontWeight: 800, color: ci.color, fontFamily: "'IBM Plex Mono', monospace" }}>{item.chunkCount}</span>
-                  : <span style={st("font-size:10.5px;color:#cdd8d2;")}>—</span>
-                }
-              </div>
-              {/* สถานะ */}
-              <div style={{ width: 88, flexShrink: 0, textAlign: "right", paddingRight: 10 }}>
-                <span style={{ fontSize: 10, fontWeight: 600, color: item.active ? "#2c7a4f" : "#b0bdb6" }}>
-                  {item.active ? "● ใช้งาน" : "○ ปิด"}
-                </span>
-              </div>
-              {/* toggle */}
-              <div style={{ width: 46, flexShrink: 0, display: "flex", justifyContent: "flex-end" }}>
-                <Toggle active={item.active} onClick={e => { e.stopPropagation(); onToggleK(item.id); }} small />
-              </div>
+            <div style={{ flex: 1, minWidth: 0, paddingRight: 10 }}>
+              <div style={st("font-size:13px;font-weight:700;color:#16241d;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;")}>{item.title}</div>
+              <div style={st("font-size:10.5px;color:#9aa8a1;margin-top:1px;")}>{item.meta}</div>
             </div>
-          );
-        }
+            <div style={{ width: 140, flexShrink: 0, paddingRight: 6 }}>
+              <span style={st("font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:" + tp.bg + ";color:" + tp.color + ";white-space:nowrap;")}>{tp.label}</span>
+            </div>
+            <div style={{ width: 92, flexShrink: 0, textAlign: "right", paddingRight: 10 }}>
+              <span style={{ fontSize: 10, fontWeight: 600, color: item.active ? "#2c7a4f" : "#b0bdb6" }}>
+                {item.active ? "● ใช้งาน" : "○ ปิด"}
+              </span>
+            </div>
+            <div style={{ width: 46, flexShrink: 0, display: "flex", justifyContent: "flex-end" }}>
+              <Toggle active={item.active} onClick={e => { e.stopPropagation(); onToggle(item.id); }} small />
+            </div>
+          </div>
+        );
       })}
     </div>
   );
 }
 
+// ─── PdfListView ─────────────────────────────────────────────────────────────────────────────────────
+const PDF_COLS = [
+  { key: "name",     label: "ชื่อเอกสาร", flex: true, sortAsc: "name",     sortDesc: "name_z" },
+  { key: "category", label: "หมวด",       width: 120, sortAsc: "category", sortDesc: null },
+  { key: "chunks",   label: "Chunks",     width: 76,  sortAsc: "chunks",   sortDesc: null,    align: "right" },
+  { key: "status",   label: "สถานะ",      width: 92,  sortAsc: null,                          align: "right" },
+];
+
+function PdfListView({ docs, categories, sortBy, setSortBy, onOpen, onToggle }) {
+  const handleColClick = col => {
+    if (!col.sortAsc) return;
+    if (sortBy === col.sortAsc && col.sortDesc) setSortBy(col.sortDesc);
+    else setSortBy(col.sortAsc);
+  };
+  const sortIcon = col => {
+    if (!col.sortAsc) return null;
+    if (sortBy === col.sortAsc) return <span style={{ marginLeft: 3, fontSize: 10 }}>↑</span>;
+    if (col.sortDesc && sortBy === col.sortDesc) return <span style={{ marginLeft: 3, fontSize: 10 }}>↓</span>;
+    return <span style={{ marginLeft: 3, fontSize: 10, color: "#cdd8d2" }}>⇅</span>;
+  };
+  const isActive = col => col.sortAsc && (sortBy === col.sortAsc || sortBy === col.sortDesc);
+
+  return (
+    <div style={st("background:#fff;border:1.5px solid #e4ece8;border-radius:11px;overflow:hidden;")}>
+      <div style={{ display: "flex", alignItems: "center", padding: "0 16px", background: "#f5f8f6", borderBottom: "1.5px solid #e4ece8" }}>
+        <div style={{ width: 42, flexShrink: 0 }} />
+        {PDF_COLS.map(col => (
+          <div key={col.key} onClick={() => handleColClick(col)}
+            style={{ ...(col.flex ? { flex: 1, minWidth: 0 } : { width: col.width, flexShrink: 0 }), textAlign: col.align || "left", padding: "8px 6px", fontSize: 10.5, fontWeight: 700, letterSpacing: ".3px", color: isActive(col) ? "#157347" : "#8a9e96", cursor: col.sortAsc ? "pointer" : "default", userSelect: "none", display: "flex", alignItems: "center", justifyContent: col.align === "right" ? "flex-end" : "flex-start", gap: 1, transition: "color .12s" }}
+            onMouseEnter={e => { if (col.sortAsc) e.currentTarget.style.color = "#157347"; }}
+            onMouseLeave={e => { e.currentTarget.style.color = isActive(col) ? "#157347" : "#8a9e96"; }}
+          >{col.label}{sortIcon(col)}</div>
+        ))}
+        <div style={{ width: 46, flexShrink: 0 }} />
+      </div>
+      {docs.map((doc, i) => {
+        const ci = catInfo(doc.category || "general", categories);
+        const bdr = i < docs.length - 1 ? "1px solid #f0f4f2" : "none";
+        return (
+          <div key={doc.id} onClick={() => onOpen(doc)}
+            style={{ display: "flex", alignItems: "center", padding: "10px 16px", borderBottom: bdr, borderLeft: `3px solid ${ci.color}`, cursor: "pointer", transition: "background .12s" }}
+            onMouseEnter={e => e.currentTarget.style.background="#f8faf9"}
+            onMouseLeave={e => e.currentTarget.style.background="transparent"}
+          >
+            <div style={{ width: 42, flexShrink: 0, display: "flex", alignItems: "center" }}>
+              <div style={st("width:30px;height:30px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:14px;background:" + ci.bg + ";")} >📄</div>
+            </div>
+            <div style={{ flex: 1, minWidth: 0, paddingRight: 10 }}>
+              <div style={st("font-size:13px;font-weight:700;color:#16241d;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;")}>{doc.title}</div>
+              <div style={st("font-size:10.5px;color:#9aa8a1;margin-top:1px;font-family:'IBM Plex Mono',monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;")}>{doc.sourceFile || ""}</div>
+            </div>
+            <div style={{ width: 120, flexShrink: 0, paddingRight: 6 }}>
+              <span style={st("font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:" + ci.bg + ";color:" + ci.color + ";white-space:nowrap;")}>{ci.label}</span>
+            </div>
+            <div style={{ width: 76, flexShrink: 0, textAlign: "right", paddingRight: 10 }}>
+              {doc.chunkCount != null
+                ? <span style={{ fontSize: 12, fontWeight: 800, color: ci.color, fontFamily: "'IBM Plex Mono', monospace" }}>{doc.chunkCount}</span>
+                : <span style={st("font-size:10.5px;color:#cdd8d2;")}>—</span>
+              }
+            </div>
+            <div style={{ width: 92, flexShrink: 0, textAlign: "right", paddingRight: 10 }}>
+              <span style={{ fontSize: 10, fontWeight: 600, color: doc.active ? "#2c7a4f" : "#b0bdb6" }}>
+                {doc.active ? "● ใช้งาน" : "○ ปิด"}
+              </span>
+            </div>
+            <div style={{ width: 46, flexShrink: 0, display: "flex", justifyContent: "flex-end" }}>
+              <Toggle active={doc.active} onClick={e => { e.stopPropagation(); onToggle(doc.id); }} small />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 // ─── ContextScreen ────────────────────────────────────────────────────────────
 export default function ContextScreen() {
   const {
@@ -558,7 +554,6 @@ export default function ContextScreen() {
   const [showCategoryManager, setShowCategoryManager] = useState(false);
 
   const [search,       setSearch]       = useState("");
-  const [filterType,   setFilterType]   = useState("all");
   const [filterCat,    setFilterCat]    = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
   const [sortBy,       setSortBy]       = useState("newest");
@@ -581,32 +576,36 @@ export default function ContextScreen() {
     return Object.entries(CAT_FALLBACK).filter(([s]) => used.has(s)).map(([s, v]) => ({ slug: s, label: v.label, color: v.color, bgColor: v.bg }));
   }, [categories, knowledgeDocs]);
 
-  const filtered = useMemo(() => {
-    let list = [
-      ...items.map(x => ({ ...x, _kind: "manual" })),
-      ...knowledgeDocs.map(x => ({ ...x, _kind: "pdf" })),
-    ];
-    if (filterType !== "all")   list = list.filter(x => x._kind === filterType);
-    if (filterCat !== "all")    list = list.filter(x => x._kind === "pdf" && (x.category || "general") === filterCat);
+  const filteredManual = useMemo(() => {
+    let list = [...items];
     if (filterStatus !== "all") list = list.filter(x => filterStatus === "active" ? x.active : !x.active);
     const q = search.trim().toLowerCase();
-    if (q) list = list.filter(x => (x.title || "").toLowerCase().includes(q) || (x.sourceFile || "").toLowerCase().includes(q) || (x.body || "").toLowerCase().includes(q));
+    if (q) list = list.filter(x => (x.title || "").toLowerCase().includes(q) || (x.body || "").toLowerCase().includes(q));
     list.sort((a, b) => {
-      if (sortBy === "name")     return (a.title || "").localeCompare(b.title || "", "th");
-      if (sortBy === "name_z")   return (b.title || "").localeCompare(a.title || "", "th");
-      if (sortBy === "category") {
-        const ga = a._kind === "pdf" ? (a.category || "general") : "\xff";
-        const gb = b._kind === "pdf" ? (b.category || "general") : "\xff";
-        if (ga !== gb) return ga.localeCompare(gb);
-        return (a.title || "").localeCompare(b.title || "", "th");
-      }
-      if (sortBy === "chunks") return ((b._kind === "pdf" ? b.chunkCount : 0) || 0) - ((a._kind === "pdf" ? a.chunkCount : 0) || 0);
+      if (sortBy === "name")   return (a.title || "").localeCompare(b.title || "", "th");
+      if (sortBy === "name_z") return (b.title || "").localeCompare(a.title || "", "th");
       return 0;
     });
     return list;
-  }, [items, knowledgeDocs, filterType, filterCat, filterStatus, search, sortBy]);
+  }, [items, filterStatus, search, sortBy]);
 
-  const hasFilters = search || filterType !== "all" || filterCat !== "all" || filterStatus !== "all";
+  const filteredPdf = useMemo(() => {
+    let list = [...knowledgeDocs];
+    if (filterCat !== "all")    list = list.filter(x => (x.category || "general") === filterCat);
+    if (filterStatus !== "all") list = list.filter(x => filterStatus === "active" ? x.active : !x.active);
+    const q = search.trim().toLowerCase();
+    if (q) list = list.filter(x => (x.title || "").toLowerCase().includes(q) || (x.sourceFile || "").toLowerCase().includes(q));
+    list.sort((a, b) => {
+      if (sortBy === "name")     return (a.title || "").localeCompare(b.title || "", "th");
+      if (sortBy === "name_z")   return (b.title || "").localeCompare(a.title || "", "th");
+      if (sortBy === "category") return (a.category || "").localeCompare(b.category || "");
+      if (sortBy === "chunks")   return ((b.chunkCount || 0) - (a.chunkCount || 0));
+      return 0;
+    });
+    return list;
+  }, [knowledgeDocs, filterCat, filterStatus, search, sortBy]);
+
+  const hasFilters = search || filterCat !== "all" || filterStatus !== "all";
 
   const handleDelete = async item => { setOpenDoc(null); await deleteContext(item.id); };
   const handleAttach = async (id, file) => {
@@ -686,22 +685,6 @@ export default function ContextScreen() {
         {/* Divider */}
         <div style={st("width:1px;height:22px;background:#e4ece8;flex-shrink:0;")} />
 
-        {/* ประเภท dropdown */}
-        <select
-          value={filterType}
-          onChange={e => { setFilterType(e.target.value); if (e.target.value === "manual") setFilterCat("all"); }}
-          style={{
-            border: `1.5px solid ${filterType !== "all" ? "#2f9e6a" : "#e4ece8"}`,
-            borderRadius: 9, padding: "7px 10px", fontFamily: "inherit", fontSize: 12,
-            color: filterType !== "all" ? "#157347" : "#5a6b63",
-            background: filterType !== "all" ? "#f0f7f2" : "#fafcfb",
-            cursor: "pointer", outline: "none", flexShrink: 0,
-          }}>
-          <option value="all">ประเภท · ทั้งหมด ({items.length + knowledgeDocs.length})</option>
-          <option value="manual">ประเภท · Manual ({items.length})</option>
-          <option value="pdf">ประเภท · PDF ({knowledgeDocs.length})</option>
-        </select>
-
         {/* สถานะ dropdown */}
         <select
           value={filterStatus}
@@ -718,8 +701,8 @@ export default function ContextScreen() {
           <option value="inactive">สถานะ · ปิด</option>
         </select>
 
-        {/* หมวด dropdown — only meaningful for PDF items */}
-        {filterType !== "manual" && visibleCats.length > 0 && (
+        {/* หมวด dropdown — filters the คลังความรู้ section */}
+        {visibleCats.length > 0 && (
           <select
             value={filterCat}
             onChange={e => setFilterCat(e.target.value)}
@@ -761,45 +744,66 @@ export default function ContextScreen() {
         </div>
       </div>
 
-      {/* ── Result bar ─────────────────────────────────────────────────────── */}
-      <div style={st("display:flex;align-items:center;justify-content:space-between;margin-bottom:9px;padding:0 2px;")}>
-        <div style={st("font-size:12px;color:#7d8e86;")}>
-          แสดง <strong style={{ color: "#16241d" }}>{filtered.length}</strong> จาก {items.length + knowledgeDocs.length} รายการ
-          {hasFilters && (
-            <button onClick={() => { setSearch(""); setFilterType("all"); setFilterCat("all"); setFilterStatus("all"); }}
-              style={st("margin-left:9px;background:none;border:none;color:#157347;font-family:inherit;font-size:11.5px;font-weight:600;cursor:pointer;text-decoration:underline;padding:0;")}>
-              ล้างทั้งหมด
-            </button>
-          )}
+      {/* ── Filter clear bar ───────────────────────────────────────────────── */}
+      {hasFilters && (
+        <div style={st("display:flex;align-items:center;justify-content:flex-end;margin-bottom:9px;padding:0 2px;")}>
+          <button onClick={() => { setSearch(""); setFilterCat("all"); setFilterStatus("all"); }}
+            style={st("background:none;border:none;color:#157347;font-family:inherit;font-size:11.5px;font-weight:600;cursor:pointer;text-decoration:underline;padding:0;")}>
+            ล้างตัวกรอง
+          </button>
         </div>
-        {sortBy === "category" && filtered.length > 0 && (
-          <span style={st("font-size:11px;color:#9aa8a1;")}>จัดกลุ่มตามหมวดหมู่</span>
+      )}
+
+      {/* ── Section 1: บริบท AI ────────────────────────────────────────────── */}
+      <div style={{ marginBottom: 24 }}>
+        <SectionHeader
+          title="✦ บริบท AI"
+          description="inject ตรงๆ ทุก prompt · อัปเดตทันที"
+          count={filteredManual.length}
+          total={items.length}
+          action={
+            <button onClick={openAddContext}
+              style={st("display:flex;align-items:center;gap:5px;background:#157347;color:#fff;border:none;border-radius:8px;padding:7px 14px;font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;")}
+              onMouseEnter={e => e.currentTarget.style.background="#0f5c37"}
+              onMouseLeave={e => e.currentTarget.style.background="#157347"}
+            >＋ เพิ่มบริบท</button>
+          }
+        />
+        {filteredManual.length === 0 ? (
+          <EmptySection hasSearch={!!search} />
+        ) : viewMode === "grid" ? (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 11 }}>
+            {filteredManual.map(item => (
+              <ManualCard key={item.id} item={item} onOpen={setOpenDoc} onToggle={toggleContext} />
+            ))}
+          </div>
+        ) : (
+          <ManualListView items={filteredManual} sortBy={sortBy} setSortBy={setSortBy}
+            onOpen={setOpenDoc} onToggle={toggleContext} />
         )}
       </div>
 
-      {/* ── Content ────────────────────────────────────────────────────────── */}
-      {filtered.length === 0 ? (
-        <div style={st("text-align:center;padding:60px 20px;background:#fff;border:1.5px solid #e4ece8;border-radius:12px;")}>
-          <div style={st("font-size:36px;margin-bottom:12px;")}>{search ? "🔍" : "📭"}</div>
-          <div style={st("font-size:14px;font-weight:700;color:#5a6b63;margin-bottom:6px;")}>{search ? `ไม่พบ "${search}"` : "ไม่มีรายการที่ตรงกัน"}</div>
-          <div style={st("font-size:12.5px;color:#9aa8a1;margin-bottom:14px;")}>ลองปรับตัวกรองหรือล้างเพื่อดูทั้งหมด</div>
-          {hasFilters && (
-            <button onClick={() => { setSearch(""); setFilterType("all"); setFilterCat("all"); setFilterStatus("all"); }}
-              style={st("background:#157347;color:#fff;border:none;border-radius:9px;padding:8px 18px;font-family:inherit;font-size:12.5px;font-weight:600;cursor:pointer;")}>
-              ล้างตัวกรอง
-            </button>
-          )}
-        </div>
-      ) : viewMode === "grid" ? (
-        <GridView items={filtered} sortBy={sortBy} categories={categories}
-          onOpenDoc={setOpenDoc} onOpenKDoc={setOpenKnowledgeDoc}
-          onToggleM={toggleContext} onToggleK={toggleKnowledgeDoc} />
-      ) : (
-        <ListView items={filtered} categories={categories}
-          sortBy={sortBy} setSortBy={setSortBy}
-          onOpenDoc={setOpenDoc} onOpenKDoc={setOpenKnowledgeDoc}
-          onToggleM={toggleContext} onToggleK={toggleKnowledgeDoc} />
-      )}
+      {/* ── Section 2: คลังความรู้ ─────────────────────────────────────────── */}
+      <div>
+        <SectionHeader
+          title="📚 คลังความรู้"
+          description="RAG · ดึง chunks อัตโนมัติตามความเกี่ยวข้องกับโฆษณาที่กำลังวิเคราะห์"
+          count={filteredPdf.length}
+          total={knowledgeDocs.length}
+        />
+        {filteredPdf.length === 0 ? (
+          <EmptySection hasSearch={!!search} />
+        ) : viewMode === "grid" ? (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 11 }}>
+            {filteredPdf.map(doc => (
+              <PdfCard key={doc.id} doc={doc} categories={categories} onOpen={setOpenKnowledgeDoc} onToggle={toggleKnowledgeDoc} />
+            ))}
+          </div>
+        ) : (
+          <PdfListView docs={filteredPdf} categories={categories} sortBy={sortBy} setSortBy={setSortBy}
+            onOpen={setOpenKnowledgeDoc} onToggle={toggleKnowledgeDoc} />
+        )}
+      </div>
 
       {/* ── Modals ─────────────────────────────────────────────────────────── */}
       {openDoc && <DocModal item={openDoc} onClose={() => setOpenDoc(null)} onDelete={handleDelete} onAttach={handleAttach} />}
